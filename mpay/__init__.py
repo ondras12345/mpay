@@ -24,6 +24,7 @@ def main():
 
     config_file = config_dir / "config.yaml"
     # ensure config file exists
+    config_dir.mkdir(parents=True, exist_ok=True)
     # TODO touch will change mtime if it already exists
     config_file.touch(exist_ok=True)
 
