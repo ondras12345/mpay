@@ -12,6 +12,8 @@ import mpay.pay as pay
 _LOGGER = logging.getLogger(__name__)
 PROGRAM_NAME: str = "mpay"
 
+CONF_USER: str = "user"
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -36,6 +38,12 @@ def main():
     )
 
     parser.add_argument(
+        "--override-user",
+        type=str, metavar="USER",
+        help="execute action as USER"
+    )
+
+    parser.add_argument(
         "-v", "--verbose", action="count",
         help="increase verbosity. Can be provided up to two times."
     )
@@ -54,12 +62,12 @@ def main():
     )
 
     parser_pay.add_argument(
-        "recipient",
+        "--recipient", "--to", required=True,
         help="user to send the money to"
     )
 
     parser_pay.add_argument(
-        "amount", type=float,
+        "--amount", type=float, required=True,
         help="amount in base currency (CZK)"
     )
 
@@ -82,6 +90,12 @@ def main():
 
     parser_pay.add_argument(
         "--note", type=str
+    )
+
+    parser_pay.add_argument(
+        "--tags",
+        type=lambda t: [s.strip() for s in t.split(",")],
+        help="comma separated list of tags"
     )
 
     parser_history = subparsers.add_parser(
@@ -141,25 +155,42 @@ def main():
         if config is None:
             config = {}
 
+    if args.override_user is not None:
+        _LOGGER.warning("override user: %s", args.override_user)
+        config[CONF_USER] = args.override_user
+
+    _LOGGER.debug("config: %r", config)
+
     # db_conn = TODO
 
     match args.subparser_name:
         case "pay":
             if args.original is None:
                 args.original = (None, None)
+            # TODO catch exceptions
             pay.pay(
-                args.recipient,
-                args.amount,
+                recipient=args.recipient,
+                converted_amount=args.amount,
                 original_currency=args.original[0],
                 original_amount=args.original[1],
                 agent=args.agent,
                 due=args.due,
-                note=args.note
+                note=args.note,
+                tags=args.tags
             )
 
+        case "history":
+            raise NotImplementedError()
+
+        case "tag":
+            raise NotImplementedError()
+
+        case "order":
+            raise NotImplementedError()
+
         case _:
+            # this should never happen, unless someone forgot to implement it
             raise ValueError("invalid subparser")
-            # TODO
 
 
 if __name__ == "__main__":
