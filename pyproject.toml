@@ -17,6 +17,7 @@ classifiers = [
 ]
 dependencies = [
     "PyYAML >= 6.0",
+    "SQLAlchemy >= 2.0.35",
 ]
 
 

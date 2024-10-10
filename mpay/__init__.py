@@ -8,11 +8,17 @@ import pathlib
 import os
 
 import mpay.pay as pay
+import mpay.db as db
+import mpay.adm as adm
 
 _LOGGER = logging.getLogger(__name__)
 PROGRAM_NAME: str = "mpay"
 
 CONF_USER: str = "user"
+CONF_DB_URL: str = "db_url"
+
+# TODO base currency (default if --original is not specified)
+BASE_CURRENCY: str = "CZK"
 
 
 def main():
@@ -137,6 +143,27 @@ def main():
         help="modify an existing standing order"
     )
 
+    parser_user = subparsers.add_parser(
+        "user",
+        help="manage users"
+    )
+
+    subparsers_user = parser_user.add_subparsers(dest="subparser_user_name", required=True)
+
+    parser_user_create = subparsers_user.add_parser(
+        "create",
+        help="create a new user"
+    )
+
+    parser_user_create.add_argument(
+        "username",
+    )
+
+    parser_user_list = subparsers_user.add_parser(
+        "list",
+        help="list users"
+    )
+
     args = parser.parse_args()
 
     levels = {
@@ -161,9 +188,10 @@ def main():
 
     _LOGGER.debug("config: %r", config)
 
-    # db_conn = TODO
+    db_engine = db.connect(config[CONF_DB_URL])
 
     match args.subparser_name:
+        # TODO exec_orders (cron)
         case "pay":
             if args.original is None:
                 args.original = (None, None)
@@ -187,6 +215,20 @@ def main():
 
         case "order":
             raise NotImplementedError()
+
+        case "user":
+            match args.subparser_user_name:
+                case "create":
+                    adm.create_user(db_engine, args.username)
+
+                case "list":
+                    # TODO pandas, output formats (json, csv, ...)?
+                    users = adm.list_users(db_engine)
+                    for u in users:
+                        print(u.id, u.name, u.balance)
+
+                case _:
+                    raise NotImplementedError()
 
         case _:
             # this should never happen, unless someone forgot to implement it
