@@ -3,6 +3,7 @@ import datetime
 import argparse
 import pathlib
 import os
+import sys
 from decimal import Decimal
 from .config import Config, parse_config
 from .mpay import Mpay
@@ -11,9 +12,45 @@ from .const import PROGRAM_NAME
 _LOGGER = logging.getLogger(__name__)
 
 
-def main():
-    parser = argparse.ArgumentParser()
+def strtobool(val: str) -> bool:
+    """Convert a string representation of truth to True or False.
+    True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
+    are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
+    'val' is anything else.
+    """
+    val = val.lower()
+    if val in ('y', 'yes', 't', 'true', 'on', '1'):
+        return True
+    elif val in ('n', 'no', 'f', 'false', 'off', '0'):
+        return False
+    else:
+        raise ValueError(f"invalid truth value {repr(val)}")
 
+
+def ask_confirmation(question: str) -> bool:
+    default = None
+    yn = {
+        None: "[y/n]",
+        True: "[Y/n]",
+        False: "[y/N]",
+    }
+    while True:
+        choice = input(f"{question} {yn[default]} ")
+        if choice == "" and default is not None:
+            return default
+        try:
+            return strtobool(choice.lower())
+        except ValueError:
+            print(f"invalid choice: {choice}")
+
+
+def print_df(df, args):
+    """Print a pandas dataframe in specified format."""
+    # TODO implement formats
+    print(df)
+
+
+def main():
     config_dir = pathlib.Path(
             os.environ.get("APPDATA") or
             os.environ.get("XDG_CONFIG_HOME") or
@@ -25,6 +62,8 @@ def main():
     config_dir.mkdir(parents=True, exist_ok=True)
     if not config_file.exists():
         config_file.touch()
+
+    parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "-c", "--config-file",
@@ -45,17 +84,33 @@ def main():
     )
 
     parser.add_argument(
-        "-y", "--yes", "--assume-yes",
+        "-y", "--assume-yes", "--yes",
         action="store_true",
         help='assume "yes" as answer to all prompts and run non-interactively'
     )
 
     subparsers = parser.add_subparsers(dest="subparser_name", required=True)
 
+    def pay(mpay: Mpay, args):
+        if args.original is None:
+            args.original = (None, None)
+        # TODO catch exceptions
+        mpay.pay(
+            recipient_name=args.recipient,
+            converted_amount=args.amount,
+            original_currency=args.original[0],
+            original_amount=args.original[1],
+            agent_name=args.agent,
+            due=args.due,
+            note=args.note,
+            tag_names=args.tags
+        )
+
     parser_pay = subparsers.add_parser(
         "pay",
         help="create a new transaction"
     )
+    parser_pay.set_defaults(func_mpay=pay)
 
     parser_pay.add_argument(
         "--recipient", "--to", required=True,
@@ -95,30 +150,48 @@ def main():
         help="comma separated list of tags"
     )
 
+    def history(mpay: Mpay, args):
+        raise NotImplementedError("TODO")
+
     parser_history = subparsers.add_parser(
         "history",
         help="print transaction history"
     )
+    parser_history.set_defaults(func_mpay=history)
 
     parser_tag = subparsers.add_parser(
         "tag",
         help="manage tags"
     )
 
-    subparsers_tag = parser_tag.add_subparsers(dest="subparser_tag_name", required=True)
+    subparsers_tag = parser_tag.add_subparsers()
+
+    def tag_list(mpay: Mpay, args):
+        print_df(mpay.get_tags_dataframe())
 
     parser_tag_list = subparsers_tag.add_parser(
         "list",
         help="list tags"
     )
+    parser_tag_list.set_defaults(func_mpay=tag_list)
+
+    # TODO tag tree
+
+    def tag_create(mpay: Mpay, args):
+        mpay.create_tag(
+            tag_name=args.name,
+            description=args.description,
+            parent_name=args.parent
+        )
 
     parser_tag_create = subparsers_tag.add_parser(
         "create",
         help="create a new tag"
     )
+    parser_tag_create.set_defaults(func_mpay=tag_create)
 
     parser_tag_create.add_argument(
-        "tag_name"
+        "name"
     )
 
     parser_tag_create.add_argument(
@@ -135,43 +208,64 @@ def main():
         help="manage standing orders"
     )
 
-    subparsers_order = parser_order.add_subparsers(dest="subparser_order_name", required=True)
+    subparsers_order = parser_order.add_subparsers()
+
+    def order_list(mpay: Mpay, args):
+        raise NotImplementedError("TODO")
 
     parser_order_list = subparsers_order.add_parser(
         "list",
         help="list standing orders"
     )
+    parser_order_list.set_defaults(func_mpay=order_list)
+
+    def order_create(mpay: Mpay, args):
+        raise NotImplementedError("TODO")
 
     parser_order_create = subparsers_order.add_parser(
         "create",
         help="create a new standing order"
     )
+    parser_order_create.set_defaults(func_mpay=order_create)
 
-    parser_order_modify = subparsers_order.add_parser(
-        "modify",
-        help="modify an existing standing order"
+    def order_delete(mpay: Mpay, args):
+        raise NotImplementedError("TODO")
+
+    parser_order_delete = subparsers_order.add_parser(
+        "delete",
+        help="delete an existing standing order"
     )
+    parser_order_delete.set_defaults(func_mpay=order_delete)
 
     parser_user = subparsers.add_parser(
         "user",
         help="manage users"
     )
+    subparsers_user = parser_user.add_subparsers()
 
-    subparsers_user = parser_user.add_subparsers(dest="subparser_user_name", required=True)
+    def user_create(mpay: Mpay, args):
+        mpay.create_user(args.username)
 
     parser_user_create = subparsers_user.add_parser(
         "create",
         help="create a new user"
     )
+    parser_user_create.set_defaults(func_mpay=user_create)
 
     parser_user_create.add_argument(
         "username",
     )
 
+    def user_list(mpay: Mpay, args):
+        users = mpay.get_users()
+        for u in users:
+            print(u.id, u.name, u.balance)
+
     parser_user_list = subparsers_user.add_parser(
         "list",
         help="list users"
     )
+    parser_user_list.set_defaults(func_mpay=user_list)
 
     args = parser.parse_args()
 
@@ -187,6 +281,9 @@ def main():
 
     _LOGGER.debug("args: %r", args)
 
+    if not args.func_mpay:
+        raise NotImplementedError("this might be needed for commands that should not connect to the db")
+
     config: Config = parse_config(args.config_file)
 
     if args.override_user is not None:
@@ -196,57 +293,16 @@ def main():
     _LOGGER.debug("config: %r", config)
 
     mpay = Mpay(config)
+    if not args.assume_yes:
+        mpay.ask_confirmation = ask_confirmation
 
-    match args.subparser_name:
-        # TODO exec_orders (cron)
-        case "pay":
-            if args.original is None:
-                args.original = (None, None)
-            # TODO catch exceptions
-            mpay.pay(
-                recipient=args.recipient,
-                converted_amount=args.amount,
-                original_currency=args.original[0],
-                original_amount=args.original[1],
-                agent=args.agent,
-                due=args.due,
-                note=args.note,
-                tags=args.tags
-            )
-
-        case "history":
-            raise NotImplementedError()
-
-        case "tag":
-            match args.subparser_tag_name:
-                case "list":
-                    print(mpay.get_tags_dataframe())
-                    #for t in tags:
-                    #    print(t.id, t.name, t.parent_id, t.description)
-                case "create":
-                    mpay.create_tag(tag_name=args.tag_name,
-                                    description=args.description,
-                                    parent_name=args.parent)
-                case _:
-                    raise NotImplementedError()
-
-        case "order":
-            raise NotImplementedError()
-
-        case "user":
-            match args.subparser_user_name:
-                case "create":
-                    mpay.create_user(args.username)
-
-                case "list":
-                    # TODO pandas, output formats (json, csv, ...)?
-                    users = mpay.get_users()
-                    for u in users:
-                        print(u.id, u.name, u.balance)
-
-                case _:
-                    raise NotImplementedError()
-
-        case _:
-            # this should never happen, unless someone forgot to implement it
-            raise ValueError("invalid subparser")
+    try:
+        args.func_mpay(mpay, args)
+        sys.exit(0)
+    # print "expected" Mpay exceptions w/o stack trace
+    except ValueError as e:
+        print(f"Error: {str(e)}")
+        sys.exit(1)
+    except Exception:
+        _LOGGER.exception("unexpected exception")
+        sys.exit(1)

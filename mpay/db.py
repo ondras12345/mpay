@@ -89,8 +89,8 @@ class Transaction(Base):
     user_to_id: Mapped[int] = mapped_column(ForeignKey(User.__tablename__ + ".id"))
     user_to: Mapped[User] = relationship(foreign_keys=[user_to_id])
     original_amount: Mapped[Optional[Decimal]] = mapped_column(money_type)
-    currency_id: Mapped[int] = mapped_column(ForeignKey(Currency.__tablename__ + ".id"))
-    currency: Mapped[Currency] = relationship()
+    original_currency_id: Mapped[Optional[int]] = mapped_column(ForeignKey(Currency.__tablename__ + ".id"))
+    original_currency: Mapped[Optional[Currency]] = relationship()
     # converted_amount is amount in system base currency
     converted_amount: Mapped[Decimal] = mapped_column(money_type)
     standing_order_id: Mapped[Optional[int]] = mapped_column(ForeignKey(StandingOrder.__tablename__ + ".id"))
@@ -101,6 +101,10 @@ class Transaction(Base):
     dt_created_utc: Mapped[datetime.datetime] = mapped_column(default=aware_utcnow)
     dt_due_utc: Mapped[datetime.datetime]
     tags: Mapped[list[Tag]] = relationship(secondary="transactions_tags", back_populates="transactions")
+    __table_args__ = (
+        # either both null or both not null
+        CheckConstraint("(original_currency_id IS NULL) = (original_amount IS NULL)"),
+    )
 
 
 class TransactionTag(Base):
