@@ -1,15 +1,19 @@
 import sqlalchemy as sqa
 from sqlalchemy import (
-    create_engine, ForeignKey, PrimaryKeyConstraint, DateTime
+    create_engine, ForeignKey, PrimaryKeyConstraint, CheckConstraint
 )
 
 from sqlalchemy.orm import (
-    declarative_base, Mapped, mapped_column, relationship,
-    Session
+    declarative_base, Mapped, mapped_column, relationship
 )
+
+from sqlalchemy.orm import Session  # noqa: F401
+
+from sqlalchemy.types import Numeric
 
 from typing import Optional
 from enum import Enum
+from decimal import Decimal
 import datetime
 
 
@@ -22,12 +26,18 @@ class StandingOrderPeriod(Enum):
 
 Base = declarative_base()
 
+money_type = Numeric(precision=9, scale=3, asdecimal=True)
+
+
+def aware_utcnow():
+    return datetime.datetime.now(datetime.timezone.utc)
+
 
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(unique=True)
-    balance: Mapped[float]  # TODO float neni dobry pro menu
+    balance: Mapped[Decimal] = mapped_column(money_type)
 
 
 class Currency(Base):
@@ -43,6 +53,12 @@ class Tag(Base):
     name: Mapped[str] = mapped_column(unique=True)
     description: Mapped[Optional[str]]
     transactions: Mapped[list["Transaction"]] = relationship(secondary="transactions_tags", back_populates="tags")
+    # tags can be a tree
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey(__tablename__ + ".id"))
+    parent: Mapped[Optional["Tag"]] = relationship()
+    __table_args__ = (
+        CheckConstraint("parent_id <> id"),
+    )
 
 
 class Agent(Base):
@@ -56,13 +72,13 @@ class StandingOrder(Base):
     __tablename__ = "standing_orders"
     id: Mapped[int] = mapped_column(primary_key=True)
     enabled: Mapped[bool]
-    period: Mapped[StandingOrderPeriod]  # TODO Enum se uklada jako string
+    period: Mapped[StandingOrderPeriod]  # TODO Enum se uklada jako string, zkusit v MySQL
     repeat_count: Mapped[Optional[int]]
     user_from_id: Mapped[int] = mapped_column(ForeignKey(User.__tablename__ + ".id"))
     user_from: Mapped[User] = relationship(foreign_keys=[user_from_id])
     user_to_id: Mapped[int] = mapped_column(ForeignKey(User.__tablename__ + ".id"))
     user_to: Mapped[User] = relationship(foreign_keys=[user_to_id])
-    amount: Mapped[float]  # TODO currency type
+    amount: Mapped[Decimal] = mapped_column(money_type)
 
 
 class Transaction(Base):
@@ -72,19 +88,18 @@ class Transaction(Base):
     user_from: Mapped[User] = relationship(foreign_keys=[user_from_id])
     user_to_id: Mapped[int] = mapped_column(ForeignKey(User.__tablename__ + ".id"))
     user_to: Mapped[User] = relationship(foreign_keys=[user_to_id])
-    original_amount: Mapped[Optional[float]]
+    original_amount: Mapped[Optional[Decimal]] = mapped_column(money_type)
     currency_id: Mapped[int] = mapped_column(ForeignKey(Currency.__tablename__ + ".id"))
     currency: Mapped[Currency] = relationship()
     # converted_amount is amount in system base currency
-    converted_amount: Mapped[float]
+    converted_amount: Mapped[Decimal] = mapped_column(money_type)
     standing_order_id: Mapped[Optional[int]] = mapped_column(ForeignKey(StandingOrder.__tablename__ + ".id"))
     standing_order: Mapped[Optional[StandingOrder]] = relationship()
     agent_id: Mapped[int] = mapped_column(ForeignKey(Agent.__tablename__ + ".id"))
     agent: Mapped[Optional[Agent]] = relationship()
     note: Mapped[Optional[str]]
-    # TODO utc dateime
-    dt_created: Mapped[datetime.datetime]
-    dt_due: Mapped[datetime.datetime]
+    dt_created_utc: Mapped[datetime.datetime] = mapped_column(default=aware_utcnow)
+    dt_due_utc: Mapped[datetime.datetime]
     tags: Mapped[list[Tag]] = relationship(secondary="transactions_tags", back_populates="transactions")
 
 
