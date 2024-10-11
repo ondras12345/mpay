@@ -44,6 +44,10 @@ class Mpay:
         with db.Session(self.db_engine) as session:
             return pd.read_sql(session.query(db.Tag).statement, session.bind)
 
+    def get_users_dataframe(self) -> pd.DataFrame:
+        with db.Session(self.db_engine) as session:
+            return pd.read_sql(session.query(db.User).statement, session.bind)
+
     def _sanitize_tag_name(self, tag_name: str) -> str:
         tag_name = tag_name.strip()
         if not tag_name:

@@ -47,7 +47,7 @@ def ask_confirmation(question: str) -> bool:
 def print_df(df, args):
     """Print a pandas dataframe in specified format."""
     # TODO implement formats
-    print(df)
+    print(df.to_string(index=False))
 
 
 def main():
@@ -94,12 +94,17 @@ def main():
     def pay(mpay: Mpay, args):
         if args.original is None:
             args.original = (None, None)
-        # TODO catch exceptions
+
+        original_currency = args.original[0]
+        original_amount = args.original[1]
+        if original_amount is not None:
+            original_amount = Decimal(original_amount)
+
         mpay.pay(
             recipient_name=args.recipient,
             converted_amount=args.amount,
-            original_currency=args.original[0],
-            original_amount=args.original[1],
+            original_currency=original_currency,
+            original_amount=original_amount,
             agent_name=args.agent,
             due=args.due,
             note=args.note,
@@ -167,7 +172,7 @@ def main():
     subparsers_tag = parser_tag.add_subparsers()
 
     def tag_list(mpay: Mpay, args):
-        print_df(mpay.get_tags_dataframe())
+        print_df(mpay.get_tags_dataframe(), args)
 
     parser_tag_list = subparsers_tag.add_parser(
         "list",
@@ -257,9 +262,7 @@ def main():
     )
 
     def user_list(mpay: Mpay, args):
-        users = mpay.get_users()
-        for u in users:
-            print(u.id, u.name, u.balance)
+        print_df(mpay.get_users_dataframe(), args)
 
     parser_user_list = subparsers_user.add_parser(
         "list",
