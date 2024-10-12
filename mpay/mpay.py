@@ -11,6 +11,21 @@ from . import db
 _LOGGER = logging.getLogger(__name__)
 
 
+def _print_tag_tree(tag: db.Tag, last: bool = True, header: str = "") -> str:
+    elbow = "└──"
+    pipe = "│  "
+    tee = "├──"
+    blank = "   "
+
+    ret = (f"{header}{elbow if last else tee}"
+           f"{tag.name}\t{tag.description if tag.description is not None else ''}"
+           "\n")
+    for i, c in enumerate(tag.children):
+        ret += _print_tag_tree(c, header=header + (blank if last else pipe), last=i == len(tag.children) - 1)
+
+    return ret
+
+
 class Mpay:
     def __init__(self, config: Config):
         self.config = config
@@ -46,6 +61,14 @@ class Mpay:
         with db.Session(self.db_engine) as session:
             tags = session.query(db.Tag)
             return list(tags)
+
+    def get_tag_tree_str(self) -> str:
+        with db.Session(self.db_engine) as session:
+            root_tags = session.query(db.Tag).filter_by(parent=None).all()
+            ret = ""
+            for i, t in enumerate(root_tags):
+                ret += _print_tag_tree(t, i == len(root_tags)-1)
+            return ret
 
     def get_tags_dataframe(self) -> pd.DataFrame:
         with db.Session(self.db_engine) as session:

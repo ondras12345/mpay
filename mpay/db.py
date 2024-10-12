@@ -64,7 +64,8 @@ class Tag(Base):
     transactions: Mapped[list["Transaction"]] = relationship(secondary="transactions_tags", back_populates="tags")
     # tags can be a tree
     parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey(__tablename__ + ".id"))
-    parent: Mapped[Optional["Tag"]] = relationship()
+    parent: Mapped[Optional["Tag"]] = relationship(back_populates="children", remote_side=[id])
+    children: Mapped[list["Tag"]] = relationship(back_populates="parent")
     __table_args__ = (
         CheckConstraint("parent_id <> id"),
     )

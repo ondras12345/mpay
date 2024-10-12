@@ -217,7 +217,14 @@ def main():
     )
     parser_tag_list.set_defaults(func_mpay=tag_list)
 
-    # TODO tag tree
+    def tag_tree(mpay: Mpay, args):
+        print(mpay.get_tag_tree_str())
+
+    parser_tag_tree = subparsers_tag.add_parser(
+        "tree",
+        help="print tag tree"
+    )
+    parser_tag_tree.set_defaults(func_mpay=tag_tree)
 
     def tag_create(mpay: Mpay, args):
         mpay.create_tag(
