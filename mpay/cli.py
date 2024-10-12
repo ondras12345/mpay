@@ -315,14 +315,21 @@ def main():
         "--note", type=str
     )
 
-    def order_disable(mpay: Mpay, args):
-        raise NotImplementedError("TODO")
+    def order_disable(mpay: Mpay, args) -> int:
+        if mpay.disable_order(args.name):
+            return 0
+        return 1
 
     parser_order_disable = subparsers_order.add_parser(
         "disable",
-        help="disable an existing standing order"
+        help="disable an existing standing order. This operation is irreversible."
     )
     parser_order_disable.set_defaults(func_mpay=order_disable)
+
+    parser_order_disable.add_argument(
+        "name",
+        help="name of standing order to be disabled"
+    )
 
     parser_user = subparsers.add_parser(
         "user",
@@ -420,8 +427,8 @@ def main():
         mpay.ask_confirmation = ask_confirmation
 
     try:
-        args.func_mpay(mpay, args)
-        sys.exit(0)
+        ret = args.func_mpay(mpay, args)
+        sys.exit(ret if ret is not None else 0)
     # print "expected" Mpay exceptions w/o stack trace
     except ValueError as e:
         print(f"Error: {str(e)}")

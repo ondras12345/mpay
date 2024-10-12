@@ -277,6 +277,34 @@ class Mpay:
             session.add(o)
             session.commit()
 
+    def disable_order(self, order_name: str) -> bool:
+        """Disable a standing order. This operation is irreversible.
+
+        :return: True on success, False otherwise
+        """
+        with db.Session(self.db_engine) as session:
+            try:
+                user = session.query(db.User).filter_by(name=self.config.user).one()
+            except sqa.exc.NoResultFound:
+                raise ValueError("current user does not exist in the database")
+
+            try:
+                order = session.query(db.StandingOrder).filter_by(name=order_name, user_from=user).one()
+            except sqa.exc.NoResultFound:
+                raise ValueError(f"standing order {order_name} with user_from={user.name} does not exist")
+
+            if order.dt_next_utc is None:
+                # already disabled
+                return True
+
+            if not self.ask_confirmation("This operation is irreversible. Proceed?"):
+                return False
+
+            order.dt_next_utc = None
+            session.add(order)
+            session.commit()
+        return True
+
     def check(self):
         """Execute integrity checks on the database.
 
