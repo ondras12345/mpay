@@ -71,25 +71,47 @@ class Mpay:
                 ret += _print_tag_tree(t, i == len(root_tags)-1)
             return ret
 
-    def _sql2df(self, query, session):
+    def _sql2df(self, statement, session):
         # numpy_nullable can represent an int column with NULL values.
         # This is necessary to prevent converting id to float.
-        return pd.read_sql(query.statement, session.bind,
+        return pd.read_sql(statement, session.bind,
                            dtype_backend='numpy_nullable')
 
     def get_tags_dataframe(self) -> pd.DataFrame:
         with db.Session(self.db_engine) as session:
-            return self._sql2df(session.query(db.Tag), session)
+            return self._sql2df(session.query(db.Tag).statement, session)
 
     def get_users_dataframe(self) -> pd.DataFrame:
         with db.Session(self.db_engine) as session:
-            return self._sql2df(session.query(db.User), session)
+            return self._sql2df(session.query(db.User).statement, session)
 
     def get_transactions_dataframe(self) -> pd.DataFrame:
         with db.Session(self.db_engine) as session:
-            # TODO join users to get username
-            # TODO filter by user ??
-            return self._sql2df(session.query(db.Transaction), session)
+            user_from = sqa.orm.aliased(db.User)
+            user_to = sqa.orm.aliased(db.User)
+            return self._sql2df(
+                sqa.select(
+                    db.Transaction.id,
+                    user_from.name.label("user_from"),
+                    user_to.name.label("user_to"),
+                    db.Transaction.converted_amount,
+                    db.Currency.iso_4217.label("original_currency"),
+                    db.Transaction.original_amount,
+                    db.Agent.name.label("agent"),
+                    # Standing order name is not unique! (user_from, name) is,
+                    # but that's too many columns.
+                    db.Transaction.standing_order_id,
+                    db.Transaction.note,
+                    db.Transaction.dt_due_utc,
+                    db.Transaction.dt_created_utc,
+                )
+                .join(user_from, db.Transaction.user_from)
+                .join(user_to, db.Transaction.user_to)
+                .outerjoin(db.Transaction.original_currency)
+                .outerjoin(db.Transaction.agent)
+                .order_by(db.Transaction.dt_due_utc),
+                session
+            )
 
     def _sanitize_tag_name(self, tag_name: str) -> str:
         tag_name = tag_name.strip()
