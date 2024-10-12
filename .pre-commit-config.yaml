@@ -17,3 +17,8 @@ repos:
       - id: destroyed-symlinks
       - id: fix-byte-order-marker
       - id: check-merge-conflict
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
