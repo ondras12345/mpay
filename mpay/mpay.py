@@ -113,6 +113,27 @@ class Mpay:
                 session
             )
 
+    def get_orders_dataframe(self) -> pd.DataFrame:
+        with db.Session(self.db_engine) as session:
+            user_from = sqa.orm.aliased(db.User)
+            user_to = sqa.orm.aliased(db.User)
+            return self._sql2df(
+                sqa.select(
+                    db.StandingOrder.id,
+                    db.StandingOrder.name,
+                    user_from.name.label("user_from"),
+                    user_to.name.label("user_to"),
+                    db.StandingOrder.amount,
+                    db.StandingOrder.note,
+                    db.StandingOrder.rrule_str,
+                    db.StandingOrder.dt_next_utc,
+                    db.StandingOrder.dt_created_utc,
+                )
+                .join(user_from, db.StandingOrder.user_from)
+                .join(user_to, db.StandingOrder.user_to),
+                session
+            )
+
     def _sanitize_tag_name(self, tag_name: str) -> str:
         tag_name = tag_name.strip()
         if not tag_name:

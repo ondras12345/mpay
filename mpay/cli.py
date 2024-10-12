@@ -261,7 +261,7 @@ def main():
     subparsers_order = parser_order.add_subparsers(required=True)
 
     def order_list(mpay: Mpay, args):
-        raise NotImplementedError("TODO")
+        print_df(mpay.get_orders_dataframe(), args.format)
 
     parser_order_list = subparsers_order.add_parser(
         "list",
