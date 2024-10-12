@@ -143,5 +143,8 @@ def connect(db_url: str) -> sqa.engine:
 
         sqa.event.listen(engine, "connect", set_sqlite_pragma)
 
-    Base.metadata.create_all(engine)
     return engine
+
+
+def create_tables(db_engine) -> None:
+    Base.metadata.create_all(db_engine)

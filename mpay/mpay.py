@@ -16,6 +16,9 @@ class Mpay:
         self.config = config
         self.db_engine = db.connect(config.db_url)
 
+    def create_database(self):
+        db.create_tables(self.db_engine)
+
     @staticmethod
     def ask_confirmation(question: str) -> bool:
         """Ask the user for confirmation.

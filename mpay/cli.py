@@ -283,14 +283,29 @@ def main():
     )
     parser_user_list.set_defaults(func_mpay=user_list)
 
-    def check(mpay: Mpay, args):
+    parser_admin = subparsers.add_parser(
+        "admin",
+        help="perform administrative tasks that require elevated permissions"
+    )
+    subparsers_admin = parser_admin.add_subparsers(required=True)
+
+    def admin_check(mpay: Mpay, args):
         mpay.check()
 
-    parser_check = subparsers.add_parser(
+    parser_admin_check = subparsers_admin.add_parser(
         "check",
         help="execute database checks"
     )
-    parser_check.set_defaults(func_mpay=check)
+    parser_admin_check.set_defaults(func_mpay=admin_check)
+
+    def admin_init(mpay: Mpay, args):
+        mpay.create_database()
+
+    parser_admin_init = subparsers_admin.add_parser(
+        "init",
+        help="initialize the database"
+    )
+    parser_admin_init.set_defaults(func_mpay=admin_init)
 
     args = parser.parse_args()
 
