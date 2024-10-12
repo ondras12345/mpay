@@ -232,7 +232,8 @@ class Mpay:
 
     def execute_orders(self) -> None:
         with db.Session(self.db_engine) as session:
-            orders = session.query(db.StandingOrder)
+            utc_now = datetime.datetime.now(datetime.timezone.utc)
+            orders = session.query(db.StandingOrder).filter(db.StandingOrder.dt_next_utc < utc_now)
             for order in orders:
                 self._execute_order(order, session)
             session.commit()
