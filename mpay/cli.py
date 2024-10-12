@@ -4,13 +4,13 @@ import argparse
 import pathlib
 import os
 import sys
+import dateutil.rrule
 import pandas as pd
 from enum import Enum
 from decimal import Decimal
 from .config import Config, parse_config
 from .mpay import Mpay
 from .const import PROGRAM_NAME
-from . import db
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -274,10 +274,8 @@ def main():
             name=args.order_name,
             recipient_name=args.recipient,
             amount=args.amount,
-            period=args.period,
-            start=args.start,
+            rrule=args.rrule,
             note=args.note,
-            repeat_count=args.repeat_count
         )
 
     parser_order_create = subparsers_order.add_parser(
@@ -297,9 +295,15 @@ def main():
     )
 
     parser_order_create.add_argument(
-        "--period", required=True,
-        type=db.StandingOrderPeriod, choices=list(db.StandingOrderPeriod),
-        help="how often should the payment be created"
+        "--rrule", required=True,
+        type=lambda s: dateutil.rrule.rrulestr(
+            s,
+            # default dtstart: today's midnight
+            dtstart=datetime.datetime.now()
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+        ),
+        help="recurrence rule in iCal RRULE format. "
+             "DTSTART will be interpreted as UTC datetime."
     )
 
     parser_order_create.add_argument(
@@ -308,29 +312,17 @@ def main():
     )
 
     parser_order_create.add_argument(
-        "--start", type=datetime.date.fromisoformat,
-        default=datetime.date.today(),
-        help="due date of first payment in ISO8601 format with 1-day resolution. "
-             "Default: today"
-    )
-
-    parser_order_create.add_argument(
         "--note", type=str
     )
 
-    parser_order_create.add_argument(
-        "--repeat-count", type=int,
-        help="how many payments should be executed before the order expires. Default: infinity"
-    )
-
-    def order_delete(mpay: Mpay, args):
+    def order_disable(mpay: Mpay, args):
         raise NotImplementedError("TODO")
 
-    parser_order_delete = subparsers_order.add_parser(
-        "delete",
-        help="delete an existing standing order"
+    parser_order_disable = subparsers_order.add_parser(
+        "disable",
+        help="disable an existing standing order"
     )
-    parser_order_delete.set_defaults(func_mpay=order_delete)
+    parser_order_disable.set_defaults(func_mpay=order_disable)
 
     parser_user = subparsers.add_parser(
         "user",

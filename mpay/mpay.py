@@ -1,6 +1,7 @@
 import datetime
 import re
 import logging
+import dateutil.rrule
 import sqlalchemy as sqa
 import pandas as pd
 from decimal import Decimal
@@ -199,12 +200,13 @@ class Mpay:
             session.commit()
 
     def _execute_order(self, order: db.StandingOrder, session) -> None:
-        if not order.enabled:
+        if order.dt_next_utc is None:
+            # expired or disabled order
             return
 
-        today = datetime.date.today()
+        utc_now = datetime.datetime.now(datetime.timezone.utc)
 
-        while order.dt_next_utc <= today:
+        while order.dt_next_utc.replace(tzinfo=datetime.timezone.utc) <= utc_now:
             # pay
             t = db.Transaction(
                 user_from=order.user_from,
@@ -217,15 +219,11 @@ class Mpay:
             self._execute_transaction(t)
 
             # schedule next payment
-            order.dt_next_utc = order.period.get_next_occurence(order.dt_next_utc)
-
-            # reduce repeat count (time to live)
-            if order.repeat_count is not None:
-                # there is a potential race condition here, but there should
-                # only ever be one "mpay cron" instance running
-                order.repeat_count -= 1
-                if order.repeat_count == 0:
-                    order.enabled = False
+            r = dateutil.rrule.rrulestr(order.rrule_str)
+            prev_utc = order.dt_next_utc
+            # we'll feed it naive utc datetime and get a naive utc result
+            order.dt_next_utc = r.after(order.dt_next_utc)
+            assert order.dt_next_utc > prev_utc
             session.add(order)
 
             # Important! We need to commit after each call to
@@ -244,13 +242,13 @@ class Mpay:
         name: str,
         recipient_name: str,
         amount: Decimal,
-        period: db.StandingOrderPeriod,
-        start: datetime.date,
+        rrule: dateutil.rrule.rrule,
         note: Optional[str] = None,
-        repeat_count: Optional[int] = None,
-        enabled: bool = True
     ) -> None:
-        """Create a standing order."""
+        """Create a standing order.
+
+        :param rrule: Recurrence rule. dtstart will be regarded as UTC.
+        """
 
         if amount <= 0:
             raise ValueError("amount must be greater than zero")
@@ -268,14 +266,12 @@ class Mpay:
 
             o = db.StandingOrder(
                 name=self._sanitize_order_name(name),
-                enabled=enabled,
-                period=period,
-                repeat_count=repeat_count,
+                rrule_str=str(rrule),
                 user_from=sender,
                 user_to=recipient,
                 amount=amount,
                 note=note,
-                dt_next_utc=start
+                dt_next_utc=rrule[0]
             )
             session.add(o)
             session.commit()
