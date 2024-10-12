@@ -194,7 +194,7 @@ def main():
     )
 
     def history(mpay: Mpay, args):
-        raise NotImplementedError("TODO")
+        print_df(mpay.get_transactions_dataframe(), args.format)
 
     parser_history = subparsers.add_parser(
         "history",

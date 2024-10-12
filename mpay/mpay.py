@@ -71,13 +71,25 @@ class Mpay:
                 ret += _print_tag_tree(t, i == len(root_tags)-1)
             return ret
 
+    def _sql2df(self, query, session):
+        # numpy_nullable can represent an int column with NULL values.
+        # This is necessary to prevent converting id to float.
+        return pd.read_sql(query.statement, session.bind,
+                           dtype_backend='numpy_nullable')
+
     def get_tags_dataframe(self) -> pd.DataFrame:
         with db.Session(self.db_engine) as session:
-            return pd.read_sql(session.query(db.Tag).statement, session.bind)
+            return self._sql2df(session.query(db.Tag), session)
 
     def get_users_dataframe(self) -> pd.DataFrame:
         with db.Session(self.db_engine) as session:
-            return pd.read_sql(session.query(db.User).statement, session.bind)
+            return self._sql2df(session.query(db.User), session)
+
+    def get_transactions_dataframe(self) -> pd.DataFrame:
+        with db.Session(self.db_engine) as session:
+            # TODO join users to get username
+            # TODO filter by user ??
+            return self._sql2df(session.query(db.Transaction), session)
 
     def _sanitize_tag_name(self, tag_name: str) -> str:
         tag_name = tag_name.strip()
