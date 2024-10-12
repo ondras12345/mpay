@@ -10,6 +10,7 @@ from decimal import Decimal
 from .config import Config, parse_config
 from .mpay import Mpay
 from .const import PROGRAM_NAME
+from . import db
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -162,7 +163,7 @@ def main():
 
     parser_pay.add_argument(
         "--amount", type=Decimal, required=True,
-        help="amount in base currency (CZK)"
+        help="amount in base currency"
     )
 
     parser_pay.add_argument(
@@ -179,7 +180,7 @@ def main():
     parser_pay.add_argument(
         "--due", type=datetime.datetime.fromisoformat,
         default=datetime.datetime.now(),
-        help="due date of this payment is ISO8601 format. Default: now"
+        help="due date of this payment in ISO8601 format. Default: now"
     )
 
     parser_pay.add_argument(
@@ -269,13 +270,58 @@ def main():
     parser_order_list.set_defaults(func_mpay=order_list)
 
     def order_create(mpay: Mpay, args):
-        raise NotImplementedError("TODO")
+        mpay.create_order(
+            name=args.order_name,
+            recipient_name=args.recipient,
+            amount=args.amount,
+            period=args.period,
+            start=args.start,
+            note=args.note,
+            repeat_count=args.repeat_count
+        )
 
     parser_order_create = subparsers_order.add_parser(
         "create",
         help="create a new standing order"
     )
     parser_order_create.set_defaults(func_mpay=order_create)
+
+    parser_order_create.add_argument(
+        "order_name",
+        help="standing order name"
+    )
+
+    parser_order_create.add_argument(
+        "--recipient", "--to", required=True,
+        help="user to send the money to"
+    )
+
+    parser_order_create.add_argument(
+        "--period", required=True,
+        type=db.StandingOrderPeriod, choices=list(db.StandingOrderPeriod),
+        help="how often should the payment be created"
+    )
+
+    parser_order_create.add_argument(
+        "--amount", type=Decimal, required=True,
+        help="amount in base currency"
+    )
+
+    parser_order_create.add_argument(
+        "--start", type=datetime.date.fromisoformat,
+        default=datetime.date.today(),
+        help="due date of first payment in ISO8601 format with 1-day resolution. "
+             "Default: today"
+    )
+
+    parser_order_create.add_argument(
+        "--note", type=str
+    )
+
+    parser_order_create.add_argument(
+        "--repeat-count", type=int,
+        help="how many payments should be executed before the order expires. Default: infinity"
+    )
 
     def order_delete(mpay: Mpay, args):
         raise NotImplementedError("TODO")
@@ -337,6 +383,15 @@ def main():
         help="initialize the database"
     )
     parser_admin_init.set_defaults(func_mpay=admin_init)
+
+    def admin_cron(mpay: Mpay, args):
+        mpay.execute_orders()
+
+    parser_admin_cron = subparsers_admin.add_parser(
+        "cron",
+        help="execute periodic tasks (standing orders, etc.)"
+    )
+    parser_admin_cron.set_defaults(func_mpay=admin_cron)
 
     args = parser.parse_args()
 

@@ -86,6 +86,14 @@ class Mpay:
             raise ValueError("tag name can only contain letters, numbers, dash and underscore")
         return tag_name
 
+    def _sanitize_order_name(self, order_name: str) -> str:
+        order_name = order_name.strip()
+        if not order_name:
+            raise ValueError("order name must not be empty")
+        if not re.match(r"^[a-zA-Z0-9_-]+$", order_name):
+            raise ValueError("order name can only contain letters, numbers, dash and underscore")
+        return order_name
+
     def create_tag(
             self,
             tag_name: str,
@@ -103,6 +111,18 @@ class Mpay:
             t = db.Tag(name=tag_name, description=description, parent=parent)
             session.add(t)
             session.commit()
+
+    def _execute_transaction(self, t: db.Transaction):
+        """Update users' balance based on specified transaction.
+
+        IMPORTANT: This will only work once per transaction. SqlAlchemy seems
+        to only execute the last UPDATE statement if called multiple times.
+        Call session.commit() after executing each transaction.
+        """
+        _LOGGER.debug("_execute_transaction %r", t)
+        # cannot use +=, we need the addition to be done by the database
+        t.user_from.balance = db.User.balance - t.converted_amount
+        t.user_to.balance = db.User.balance + t.converted_amount
 
     def pay(
         self,
@@ -175,11 +195,89 @@ class Mpay:
                 tags=tags,
             )
             session.add(t)
+            self._execute_transaction(t)
+            session.commit()
 
-            # cannot use +=, we need the addition to be done by the database
-            sender.balance = db.User.balance - converted_amount
-            recipient.balance = db.User.balance + converted_amount
+    def _execute_order(self, order: db.StandingOrder, session) -> None:
+        if not order.enabled:
+            return
 
+        today = datetime.date.today()
+
+        while order.dt_next_utc <= today:
+            # pay
+            t = db.Transaction(
+                user_from=order.user_from,
+                user_to=order.user_to,
+                converted_amount=order.amount,
+                dt_due_utc=order.dt_next_utc,
+                standing_order=order
+            )
+            session.add(t)
+            self._execute_transaction(t)
+
+            # schedule next payment
+            order.dt_next_utc = order.period.get_next_occurence(order.dt_next_utc)
+
+            # reduce repeat count (time to live)
+            if order.repeat_count is not None:
+                # there is a potential race condition here, but there should
+                # only ever be one "mpay cron" instance running
+                order.repeat_count -= 1
+                if order.repeat_count == 0:
+                    order.enabled = False
+            session.add(order)
+
+            # Important! We need to commit after each call to
+            # _execute_transaction.
+            session.commit()
+
+    def execute_orders(self) -> None:
+        with db.Session(self.db_engine) as session:
+            orders = session.query(db.StandingOrder)
+            for order in orders:
+                self._execute_order(order, session)
+            session.commit()
+
+    def create_order(
+        self,
+        name: str,
+        recipient_name: str,
+        amount: Decimal,
+        period: db.StandingOrderPeriod,
+        start: datetime.date,
+        note: Optional[str] = None,
+        repeat_count: Optional[int] = None,
+        enabled: bool = True
+    ) -> None:
+        """Create a standing order."""
+
+        if amount <= 0:
+            raise ValueError("amount must be greater than zero")
+
+        with db.Session(self.db_engine) as session:
+            try:
+                sender = session.query(db.User).filter_by(name=self.config.user).one()
+            except sqa.exc.NoResultFound:
+                raise ValueError("current user does not exist in the database")
+
+            try:
+                recipient = session.query(db.User).filter_by(name=recipient_name).one()
+            except sqa.exc.NoResultFound:
+                raise ValueError("recipient user does not exist")
+
+            o = db.StandingOrder(
+                name=self._sanitize_order_name(name),
+                enabled=enabled,
+                period=period,
+                repeat_count=repeat_count,
+                user_from=sender,
+                user_to=recipient,
+                amount=amount,
+                note=note,
+                dt_next_utc=start
+            )
+            session.add(o)
             session.commit()
 
     def check(self):

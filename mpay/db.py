@@ -2,7 +2,8 @@ import datetime
 import logging
 import sqlalchemy as sqa
 from sqlalchemy import (
-    create_engine, ForeignKey, PrimaryKeyConstraint, CheckConstraint
+    create_engine, ForeignKey, PrimaryKeyConstraint, CheckConstraint,
+    UniqueConstraint
 )
 
 from sqlalchemy.orm import (
@@ -17,6 +18,7 @@ from sqlalchemy.types import Numeric
 from typing import Optional
 from enum import Enum
 from decimal import Decimal
+from dateutil.relativedelta import relativedelta
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,7 +28,25 @@ class StandingOrderPeriod(Enum):
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
-    # TODO
+    YEARLY = "yearly"
+    # TODO store relativedelta as text relativedelta(days=+1) in db,
+    # we don't need an enum.
+    # Either that, or add an extra table that defines period with name="daily"
+    # and delta="relativedelta(days=+1)" (to be created by db admin)
+
+    def __str__(self):
+        return self.value
+
+    def get_next_occurence(self, prev: datetime.date) -> datetime.date:
+        delta = {
+            StandingOrderPeriod.DAILY: relativedelta(days=1),
+            StandingOrderPeriod.WEEKLY: relativedelta(weeks=1),
+            StandingOrderPeriod.MONTHLY: relativedelta(months=1),
+            StandingOrderPeriod.YEARLY: relativedelta(years=1),
+        }[self]
+        next_occurence = prev + delta
+        assert next_occurence > prev
+        return next_occurence
 
 
 Base = declarative_base()
@@ -81,6 +101,7 @@ class Agent(Base):
 class StandingOrder(Base):
     __tablename__ = "standing_orders"
     id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]
     enabled: Mapped[bool]
     period: Mapped[StandingOrderPeriod]  # TODO Enum se uklada jako string, zkusit v MySQL
     repeat_count: Mapped[Optional[int]]
@@ -89,6 +110,14 @@ class StandingOrder(Base):
     user_to_id: Mapped[int] = mapped_column(ForeignKey(User.__tablename__ + ".id"))
     user_to: Mapped[User] = relationship(foreign_keys=[user_to_id])
     amount: Mapped[Decimal] = mapped_column(money_type)
+    note: Mapped[Optional[str]]
+    # utc date when next transaction should occur
+    dt_next_utc: Mapped[datetime.date]
+    dt_created_utc: Mapped[datetime.datetime] = mapped_column(default=aware_utcnow)
+    __table_args__ = (
+        UniqueConstraint("name", "user_from_id"),
+        CheckConstraint("amount > 0"),
+    )
 
 
 class Transaction(Base):
