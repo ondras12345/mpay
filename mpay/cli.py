@@ -4,12 +4,22 @@ import argparse
 import pathlib
 import os
 import sys
+import pandas as pd
+from enum import Enum
 from decimal import Decimal
 from .config import Config, parse_config
 from .mpay import Mpay
 from .const import PROGRAM_NAME
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class OutputFormat(Enum):
+    JSON = "json"
+    CSV = "csv"
+
+    def __str__(self):
+        return self.value
 
 
 def strtobool(val: str) -> bool:
@@ -49,10 +59,20 @@ def ask_confirmation(question: str) -> bool:
             print(f"invalid choice: {choice}")
 
 
-def print_df(df, args):
+def print_df(df: pd.DataFrame, output_format: OutputFormat | None):
     """Print a pandas dataframe in specified format."""
-    # TODO implement formats
-    print(df.to_string(index=False))
+    match output_format:
+        case OutputFormat.CSV:
+            print(df.to_csv(index=False))
+
+        case OutputFormat.JSON:
+            print(df.to_json(orient="records", indent=2))
+
+        case None:
+            print(df.to_string(index=False))
+
+        case _:
+            raise NotImplementedError("unknown dataframe output format: %s", output_format)
 
 
 def main():
@@ -102,6 +122,11 @@ def main():
              "but it does not print the prompts"
     )
 
+    parser.add_argument(
+        "--format", type=OutputFormat, choices=list(OutputFormat),
+        help="set output format for commands that output a pandas dataframe"
+    )
+
     subparsers = parser.add_subparsers(dest="subparser_name", required=True)
 
     def pay(mpay: Mpay, args):
@@ -143,7 +168,6 @@ def main():
     parser_pay.add_argument(
         "--original",
         nargs=2, metavar=("CURRENCY", "AMOUNT"),
-        # TODO type
         help="Original amount and currency."
     )
 
@@ -185,7 +209,7 @@ def main():
     subparsers_tag = parser_tag.add_subparsers(required=True)
 
     def tag_list(mpay: Mpay, args):
-        print_df(mpay.get_tags_dataframe(), args)
+        print_df(mpay.get_tags_dataframe(), args.format)
 
     parser_tag_list = subparsers_tag.add_parser(
         "list",
@@ -275,7 +299,7 @@ def main():
     )
 
     def user_list(mpay: Mpay, args):
-        print_df(mpay.get_users_dataframe(), args)
+        print_df(mpay.get_users_dataframe(), args.format)
 
     parser_user_list = subparsers_user.add_parser(
         "list",
