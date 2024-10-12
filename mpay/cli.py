@@ -283,6 +283,15 @@ def main():
     )
     parser_user_list.set_defaults(func_mpay=user_list)
 
+    def check(mpay: Mpay, args):
+        mpay.check()
+
+    parser_check = subparsers.add_parser(
+        "check",
+        help="execute database checks"
+    )
+    parser_check.set_defaults(func_mpay=check)
+
     args = parser.parse_args()
 
     levels = {

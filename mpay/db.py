@@ -1,3 +1,5 @@
+import datetime
+import logging
 import sqlalchemy as sqa
 from sqlalchemy import (
     create_engine, ForeignKey, PrimaryKeyConstraint, CheckConstraint
@@ -8,13 +10,16 @@ from sqlalchemy.orm import (
 )
 
 from sqlalchemy.orm import Session  # noqa: F401
+from sqlalchemy import func  # noqa: F401
 
 from sqlalchemy.types import Numeric
 
 from typing import Optional
 from enum import Enum
 from decimal import Decimal
-import datetime
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class StandingOrderPeriod(Enum):
@@ -31,6 +36,8 @@ money_type = Numeric(precision=9, scale=3, asdecimal=True)
 
 def aware_utcnow():
     return datetime.datetime.now(datetime.timezone.utc)
+
+# TODO MySQL collate (utf8 case insensitive ??)
 
 
 class User(Base):
@@ -124,5 +131,17 @@ class TransactionTag(Base):
 
 def connect(db_url: str) -> sqa.engine:
     engine = create_engine(db_url)
+
+    dialect_name = engine.dialect.name
+    _LOGGER.info("db engine dialect name: %s", dialect_name)
+    if "sqlite" in dialect_name.lower():
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            _LOGGER.info("setting sqlite pragmas")
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
+        sqa.event.listen(engine, "connect", set_sqlite_pragma)
+
     Base.metadata.create_all(engine)
     return engine

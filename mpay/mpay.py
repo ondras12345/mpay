@@ -146,3 +146,53 @@ class Mpay:
             recipient.balance = db.User.balance + converted_amount
 
             session.commit()
+
+    def check(self):
+        """Execute integrity checks on the database.
+
+        Most things are checked by the database engine itself, but there's
+        still a few checks that need to be done manually.
+        """
+        _LOGGER.info("executing database checks")
+        with db.Session(self.db_engine) as session:
+            dialect_name = self.db_engine.dialect.name
+            if "sqlite" in dialect_name.lower():
+                _LOGGER.warning("db engine is sqlite, running sqlite-specific checks")
+                integrity_result = session.execute(sqa.sql.text("PRAGMA integrity_check")).one()
+                if integrity_result[0].lower().strip() != "ok":
+                    raise AssertionError("sqlite PRAGMA integrity_check reported errors")
+                foreign_key_result = session.execute(sqa.sql.text("PRAGMA foreign_key_check")).all()
+                if len(foreign_key_result) != 0:
+                    raise AssertionError("sqlite foreign_key_check reported errors")
+
+            balance_sum = session.query(db.func.sum(db.User.balance)).scalar()
+            _LOGGER.info("balance sum: %s", balance_sum)
+            # balance_sum could be None if there are no users in the table
+            if balance_sum != 0 and balance_sum is not None:
+                raise AssertionError("balance sum is non-zero")
+
+            # TODO lock tables users, transactions - this seems to be MySQL
+            # specific
+
+            users = session.query(db.User).all()
+            for user in users:
+                outgoing_sum = (
+                    session.query(db.func.sum(db.Transaction.converted_amount))
+                    .filter_by(user_from=user)
+                    .scalar()
+                )
+                incoming_sum = (
+                    session.query(db.func.sum(db.Transaction.converted_amount))
+                    .filter_by(user_to=user)
+                    .scalar()
+                )
+                _LOGGER.info("user=%s, outgoing_sum=%s, incoming_sum=%s, balance=%s",
+                             user.name, outgoing_sum, incoming_sum, user.balance)
+
+                if outgoing_sum is None:
+                    outgoing_sum = 0
+                if incoming_sum is None:
+                    incoming_sum = 0
+
+                if incoming_sum - outgoing_sum != user.balance:
+                    raise AssertionError(f"balance does not match transaction sum for user {user.name}")
