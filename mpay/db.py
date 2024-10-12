@@ -105,7 +105,7 @@ class Transaction(Base):
     converted_amount: Mapped[Decimal] = mapped_column(money_type)
     standing_order_id: Mapped[Optional[int]] = mapped_column(ForeignKey(StandingOrder.__tablename__ + ".id"))
     standing_order: Mapped[Optional[StandingOrder]] = relationship()
-    agent_id: Mapped[int] = mapped_column(ForeignKey(Agent.__tablename__ + ".id"))
+    agent_id: Mapped[Optional[int]] = mapped_column(ForeignKey(Agent.__tablename__ + ".id"))
     agent: Mapped[Optional[Agent]] = relationship()
     note: Mapped[Optional[str]]
     dt_created_utc: Mapped[datetime.datetime] = mapped_column(default=aware_utcnow)
