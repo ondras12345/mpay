@@ -91,6 +91,8 @@ class Mpay:
             except sqa.exc.NoResultFound:
                 raise ValueError("recipient user does not exist")
 
+            # This is already checked by the db, but a python check will give
+            # a more user-friendly error message.
             if sender == recipient:
                 raise ValueError("recipient must not be the same as the current user")
 

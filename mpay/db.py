@@ -38,6 +38,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(unique=True)
     balance: Mapped[Decimal] = mapped_column(money_type)
+    # This could use a deferred constraint checking that SUM(balance) = 0,
+    # but I don't think MySQL supports that.
 
 
 class Currency(Base):
@@ -104,6 +106,10 @@ class Transaction(Base):
     __table_args__ = (
         # either both null or both not null
         CheckConstraint("(original_currency_id IS NULL) = (original_amount IS NULL)"),
+        CheckConstraint("user_from_id <> user_to_id"),
+        # Currently, we don't support adding transactions with future due
+        # date.
+        CheckConstraint("dt_due_utc < dt_created_utc"),
     )
 
 
