@@ -28,14 +28,19 @@ def strtobool(val: str) -> bool:
 
 
 def ask_confirmation(question: str) -> bool:
-    default = None
+    default = False
     yn = {
         None: "[y/n]",
         True: "[Y/n]",
         False: "[y/N]",
     }
     while True:
-        choice = input(f"{question} {yn[default]} ")
+        try:
+            choice = input(f"{question} {yn[default]} ")
+        except EOFError:
+            if default is None:
+                raise
+            return default
         if choice == "" and default is not None:
             return default
         try:
@@ -87,6 +92,14 @@ def main():
         "-y", "--assume-yes", "--yes",
         action="store_true",
         help='assume "yes" as answer to all prompts and run non-interactively'
+    )
+
+    parser.add_argument(
+        "--assume-no", "--no",
+        action="store_true",
+        help='assume "no" as answer to all prompts and run non-interactively. '
+             "This is roughly equivalent to reading EOF from stdin, "
+             "but it does not print the prompts"
     )
 
     subparsers = parser.add_subparsers(dest="subparser_name", required=True)
@@ -296,7 +309,12 @@ def main():
     _LOGGER.debug("config: %r", config)
 
     mpay = Mpay(config)
-    if not args.assume_yes:
+    if args.assume_no:
+        mpay.ask_confirmation = lambda x: False
+    elif args.assume_yes:
+        # leave default ask_confirmation
+        pass
+    else:
         mpay.ask_confirmation = ask_confirmation
 
     try:
