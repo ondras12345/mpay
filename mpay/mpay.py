@@ -18,7 +18,11 @@ class Mpay:
 
     @staticmethod
     def ask_confirmation(question: str) -> bool:
-        """Ask the user for confirmation. Overwrite this function if you want to use it."""
+        """Ask the user for confirmation.
+
+        Overwrite this function if you want to implement it.
+        Otherwise, it will assume the answer is yes.
+        """
         return True
 
     def create_user(self, username: str) -> None:
@@ -56,7 +60,12 @@ class Mpay:
             raise ValueError("tag name can only contain letters, numbers, dash and underscore")
         return tag_name
 
-    def create_tag(self, tag_name: str, description: Optional[str] = None, parent_name: Optional[str] = None) -> None:
+    def create_tag(
+            self,
+            tag_name: str,
+            description: Optional[str] = None,
+            parent_name: Optional[str] = None
+    ) -> None:
         tag_name = self._sanitize_tag_name(tag_name)
         with db.Session(self.db_engine) as session:
             parent = None
