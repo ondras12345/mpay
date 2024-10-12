@@ -182,7 +182,7 @@ def main():
         help="manage tags"
     )
 
-    subparsers_tag = parser_tag.add_subparsers()
+    subparsers_tag = parser_tag.add_subparsers(required=True)
 
     def tag_list(mpay: Mpay, args):
         print_df(mpay.get_tags_dataframe(), args)
@@ -226,7 +226,7 @@ def main():
         help="manage standing orders"
     )
 
-    subparsers_order = parser_order.add_subparsers()
+    subparsers_order = parser_order.add_subparsers(required=True)
 
     def order_list(mpay: Mpay, args):
         raise NotImplementedError("TODO")
@@ -259,7 +259,7 @@ def main():
         "user",
         help="manage users"
     )
-    subparsers_user = parser_user.add_subparsers()
+    subparsers_user = parser_user.add_subparsers(required=True)
 
     def user_create(mpay: Mpay, args):
         mpay.create_user(args.username)
