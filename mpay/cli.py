@@ -8,7 +8,7 @@ import dateutil.rrule
 import pandas as pd
 from enum import Enum
 from decimal import Decimal
-from .config import Config, parse_config
+from .config import Config
 from .mpay import Mpay
 from .const import PROGRAM_NAME
 
@@ -409,7 +409,7 @@ def main():
     if not args.func_mpay:
         raise NotImplementedError("this might be needed for commands that should not connect to the db")
 
-    config: Config = parse_config(args.config_file)
+    config: Config = Config.from_yaml_file(args.config_file)
 
     if args.override_user is not None:
         _LOGGER.warning("override user: %s", args.override_user)
