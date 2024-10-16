@@ -22,6 +22,12 @@ dependencies = [
 ]
 
 
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+
 [project.urls]
 Homepage = "https://github.com/ondras12345/mpay"
 Repository = "https://github.com/ondras12345/mpay"

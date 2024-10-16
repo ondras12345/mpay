@@ -53,16 +53,6 @@ class Mpay:
             session.add(u)
             session.commit()
 
-    def get_users(self) -> list[db.User]:
-        with db.Session(self.db_engine) as session:
-            users = session.query(db.User)
-            return list(users)
-
-    def get_tags(self) -> list[db.Tag]:
-        with db.Session(self.db_engine) as session:
-            tags = session.query(db.Tag)
-            return list(tags)
-
     def get_tag_tree_str(self) -> str:
         with db.Session(self.db_engine) as session:
             root_tags = session.query(db.Tag).filter_by(parent=None).all()
@@ -134,7 +124,7 @@ class Mpay:
                 session
             )
 
-    def _sanitize_tag_name(self, tag_name: str) -> str:
+    def sanitize_tag_name(self, tag_name: str) -> str:
         tag_name = tag_name.strip()
         if not tag_name:
             raise ValueError("tag name must not be empty")
@@ -142,7 +132,7 @@ class Mpay:
             raise ValueError("tag name can only contain letters, numbers, dash and underscore")
         return tag_name
 
-    def _sanitize_order_name(self, order_name: str) -> str:
+    def sanitize_order_name(self, order_name: str) -> str:
         order_name = order_name.strip()
         if not order_name:
             raise ValueError("order name must not be empty")
@@ -150,13 +140,21 @@ class Mpay:
             raise ValueError("order name can only contain letters, numbers, dash and underscore")
         return order_name
 
+    def sanitize_agent_name(self, agent_name: str) -> str:
+        agent_name = agent_name.strip()
+        if not agent_name:
+            raise ValueError("agent name must not be empty")
+        if not re.match(r"^[a-zA-Z0-9_-]+$", agent_name):
+            raise ValueError("agent name can only contain letters, numbers, dash and underscore")
+        return agent_name
+
     def create_tag(
             self,
             tag_name: str,
             description: Optional[str] = None,
             parent_name: Optional[str] = None
     ) -> None:
-        tag_name = self._sanitize_tag_name(tag_name)
+        tag_name = self.sanitize_tag_name(tag_name)
         with db.Session(self.db_engine) as session:
             parent = None
             if parent_name is not None:
@@ -166,6 +164,17 @@ class Mpay:
                     raise ValueError(f"parent tag '{parent_name}' does not exist")
             t = db.Tag(name=tag_name, description=description, parent=parent)
             session.add(t)
+            session.commit()
+
+    def create_agent(
+            self,
+            agent_name: str,
+            description: Optional[str] = None
+    ) -> None:
+        agent_name = self.sanitize_agent_name(agent_name)
+        with db.Session(self.db_engine) as session:
+            a = db.Agent(name=agent_name, description=description)
+            session.add(a)
             session.commit()
 
     def _execute_transaction(self, t: db.Transaction):
@@ -216,6 +225,7 @@ class Mpay:
 
             agent = None
             if agent_name is not None:
+                agent_name = self.sanitize_agent_name(agent_name)
                 agent = session.query(db.Agent).filter_by(name=agent_name).one_or_none()
                 if agent is None:
                     if not self.ask_confirmation(f"Agent {agent_name} does not exist. Create?"):
@@ -230,7 +240,7 @@ class Mpay:
 
             tags = []
             for tag_name in tag_names:
-                tag_name = self._sanitize_tag_name(tag_name)
+                tag_name = self.sanitize_tag_name(tag_name)
                 try:
                     tag = session.query(db.Tag).filter_by(name=tag_name).one()
                 except sqa.exc.NoResultFound:
@@ -321,7 +331,7 @@ class Mpay:
                 raise ValueError("recipient user does not exist")
 
             o = db.StandingOrder(
-                name=self._sanitize_order_name(name),
+                name=self.sanitize_order_name(name),
                 rrule_str=str(rrule),
                 user_from=sender,
                 user_to=recipient,
@@ -360,11 +370,14 @@ class Mpay:
             session.commit()
         return True
 
-    def check(self):
+    def check(self) -> None:
         """Execute integrity checks on the database.
 
         Most things are checked by the database engine itself, but there's
         still a few checks that need to be done manually.
+
+        This function returns nothing. If an error is encountered,
+        AssertionError is raised.
         """
         _LOGGER.info("executing database checks")
         with db.Session(self.db_engine) as session:
