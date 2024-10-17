@@ -70,6 +70,8 @@ def print_df(df: pd.DataFrame, output_format: OutputFormat | None):
             print(df.to_json(orient="records", indent=2))
 
         case None:
+            # TODO if dtype="string", \n gets printed as newline and messes up
+            # the table
             print(df.to_string(index=False))
 
         case _:
