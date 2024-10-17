@@ -132,7 +132,7 @@ def main():
 
     subparsers = parser.add_subparsers(dest="subparser_name", required=True)
 
-    def pay(mpay: Mpay, args):
+    def pay(mp: Mpay, args):
         if args.original is None:
             args.original = (None, None)
 
@@ -141,7 +141,7 @@ def main():
         if original_amount is not None:
             original_amount = Decimal(original_amount)
 
-        mpay.pay(
+        mp.pay(
             recipient_name=args.recipient,
             converted_amount=args.amount,
             original_currency=original_currency,
@@ -195,8 +195,8 @@ def main():
         help="comma separated list of tags"
     )
 
-    def history(mpay: Mpay, args):
-        print_df(mpay.get_transactions_dataframe(), args.format)
+    def history(mp: Mpay, args):
+        print_df(mp.get_transactions_dataframe(), args.format)
 
     parser_history = subparsers.add_parser(
         "history",
@@ -211,8 +211,8 @@ def main():
 
     subparsers_tag = parser_tag.add_subparsers(required=True)
 
-    def tag_list(mpay: Mpay, args):
-        print_df(mpay.get_tags_dataframe(), args.format)
+    def tag_list(mp: Mpay, args):
+        print_df(mp.get_tags_dataframe(), args.format)
 
     parser_tag_list = subparsers_tag.add_parser(
         "list",
@@ -220,8 +220,8 @@ def main():
     )
     parser_tag_list.set_defaults(func_mpay=tag_list)
 
-    def tag_tree(mpay: Mpay, args):
-        print(mpay.get_tag_tree_str())
+    def tag_tree(mp: Mpay, args):
+        print(mp.get_tag_tree_str())
 
     parser_tag_tree = subparsers_tag.add_parser(
         "tree",
@@ -229,8 +229,8 @@ def main():
     )
     parser_tag_tree.set_defaults(func_mpay=tag_tree)
 
-    def tag_create(mpay: Mpay, args):
-        mpay.create_tag(
+    def tag_create(mp: Mpay, args):
+        mp.create_tag(
             tag_name=args.name,
             description=args.description,
             parent_name=args.parent
@@ -262,8 +262,8 @@ def main():
 
     subparsers_order = parser_order.add_subparsers(required=True)
 
-    def order_list(mpay: Mpay, args):
-        print_df(mpay.get_orders_dataframe(), args.format)
+    def order_list(mp: Mpay, args):
+        print_df(mp.get_orders_dataframe(), args.format)
 
     parser_order_list = subparsers_order.add_parser(
         "list",
@@ -271,8 +271,8 @@ def main():
     )
     parser_order_list.set_defaults(func_mpay=order_list)
 
-    def order_create(mpay: Mpay, args):
-        mpay.create_order(
+    def order_create(mp: Mpay, args):
+        mp.create_order(
             name=args.order_name,
             recipient_name=args.recipient,
             amount=args.amount,
@@ -317,8 +317,8 @@ def main():
         "--note", type=str
     )
 
-    def order_disable(mpay: Mpay, args) -> int:
-        if mpay.disable_order(args.name):
+    def order_disable(mp: Mpay, args) -> int:
+        if mp.disable_order(args.name):
             return 0
         return 1
 
@@ -339,8 +339,8 @@ def main():
     )
     subparsers_user = parser_user.add_subparsers(required=True)
 
-    def user_create(mpay: Mpay, args):
-        mpay.create_user(args.username)
+    def user_create(mp: Mpay, args):
+        mp.create_user(args.username)
 
     parser_user_create = subparsers_user.add_parser(
         "create",
@@ -352,8 +352,8 @@ def main():
         "username",
     )
 
-    def user_list(mpay: Mpay, args):
-        print_df(mpay.get_users_dataframe(), args.format)
+    def user_list(mp: Mpay, args):
+        print_df(mp.get_users_dataframe(), args.format)
 
     parser_user_list = subparsers_user.add_parser(
         "list",
@@ -367,8 +367,8 @@ def main():
     )
     subparsers_admin = parser_admin.add_subparsers(required=True)
 
-    def admin_check(mpay: Mpay, args):
-        mpay.check()
+    def admin_check(mp: Mpay, args):
+        mp.check()
 
     parser_admin_check = subparsers_admin.add_parser(
         "check",
@@ -376,8 +376,8 @@ def main():
     )
     parser_admin_check.set_defaults(func_mpay=admin_check)
 
-    def admin_init(mpay: Mpay, args):
-        mpay.create_database()
+    def admin_init(mp: Mpay, args):
+        mp.create_database()
 
     parser_admin_init = subparsers_admin.add_parser(
         "init",
@@ -385,14 +385,16 @@ def main():
     )
     parser_admin_init.set_defaults(func_mpay=admin_init)
 
-    def admin_cron(mpay: Mpay, args):
-        mpay.execute_orders()
+    def admin_cron(mp: Mpay, args):
+        mp.execute_orders()
 
     parser_admin_cron = subparsers_admin.add_parser(
         "cron",
         help="execute periodic tasks (standing orders, etc.)"
     )
     parser_admin_cron.set_defaults(func_mpay=admin_cron)
+
+    # TODO admin import fs csv: must be done in a single transaction!
 
     args = parser.parse_args()
 
@@ -419,17 +421,17 @@ def main():
 
     _LOGGER.debug("config: %r", config)
 
-    mpay = Mpay(config)
+    mp = Mpay(config)
     if args.assume_no:
-        mpay.ask_confirmation = lambda x: False
+        mp.ask_confirmation = lambda x: False
     elif args.assume_yes:
         # leave default ask_confirmation
         pass
     else:
-        mpay.ask_confirmation = ask_confirmation
+        mp.ask_confirmation = ask_confirmation
 
     try:
-        ret = args.func_mpay(mpay, args)
+        ret = args.func_mpay(mp, args)
         sys.exit(ret if ret is not None else 0)
     # print "expected" Mpay exceptions w/o stack trace
     except ValueError as e:
