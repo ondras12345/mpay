@@ -45,9 +45,7 @@ class Mpay:
         return True
 
     def create_user(self, username: str) -> None:
-        username = username.strip()
-        if not re.match(r"^[a-z0-9_]+$", username):
-            raise ValueError("username can only contain lowercase letters, numbers and underscore")
+        username = self.sanitize_user_name(username)
         with db.Session(self.db_engine) as session:
             u = db.User(name=username, balance=0)
             session.add(u)
@@ -123,6 +121,12 @@ class Mpay:
                 .join(user_to, db.StandingOrder.user_to),
                 session
             )
+
+    def sanitize_user_name(self, username: str) -> str:
+        username = username.strip()
+        if not re.match(r"^[a-z0-9_]+$", username):
+            raise ValueError("username can only contain lowercase letters, numbers and underscore")
+        return username
 
     def sanitize_tag_name(self, tag_name: str) -> str:
         tag_name = tag_name.strip()
@@ -200,6 +204,8 @@ class Mpay:
         note: Optional[str] = None,
         tag_names: list[str] = [],
     ):
+        recipient_name = self.sanitize_user_name(recipient_name)
+
         with db.Session(self.db_engine) as session:
             try:
                 sender = session.query(db.User).filter_by(name=self.config.user).one()
@@ -264,6 +270,97 @@ class Mpay:
             self._execute_transaction(t)
             session.commit()
 
+    def import_df(
+        self,
+        df: pd.DataFrame,
+        user1_name: str,
+        user2_name: str,
+        agent_name: str
+    ) -> None:
+        """Import transactions from a dataframe.
+
+        :param df: dataframe to import data from
+        :param user1_name: name of user whose balance should be increased by
+                           a transaction with positive amount
+        :param user2_name: name of user whose balance should be decreased by
+                           a transaction with positive amount
+        :param agent_name: name of agent that should be attached to the
+                           imported transactions
+
+        df columns:
+        amount: payment amount (int or float)
+        dt_due: datetime
+        note: str
+
+        The whole operation is done in a single database transaction. This
+        means that either everything is imported without error, or there is no
+        change to the database at all.
+        """
+
+        agent_name = self.sanitize_agent_name(agent_name)
+        user1_name = self.sanitize_user_name(user1_name)
+        user2_name = self.sanitize_user_name(user2_name)
+
+        with db.Session(self.db_engine) as session:
+            agent = session.query(db.Agent).filter_by(name=agent_name).one_or_none()
+            if agent is None:
+                if not self.ask_confirmation(f"Agent {agent_name} does not exist. Create?"):
+                    raise ValueError(f"agent {agent_name} does not exist")
+                agent = db.Agent(name=agent_name)
+                session.add(agent)
+
+            try:
+                user1 = session.query(db.User).filter_by(name=user1_name).one()
+            except sqa.exc.NoResultFound:
+                raise ValueError(f"user1 ({user1_name}) does not exist")
+            try:
+                user2 = session.query(db.User).filter_by(name=user2_name).one()
+            except sqa.exc.NoResultFound:
+                raise ValueError(f"user2 ({user2_name}) does not exist")
+
+            user1_balance = Decimal("0")
+            count = 0
+            for _, row in df.iterrows():
+                amount = Decimal(row.amount)
+                if amount > 0:
+                    user_from, user_to = user2, user1
+                elif amount < 0:
+                    user_from, user_to = user1, user2
+                else:
+                    raise ValueError("amount must be non-zero")
+
+                note: Optional[str] = row.note
+                # convert empty string to None
+                if not note:
+                    note = None
+
+                dt_due_utc = datetime.datetime.fromisoformat(row.dt_due).astimezone(datetime.timezone.utc)
+
+                user1_balance += amount
+                count += 1
+
+                t = db.Transaction(
+                    user_from=user_from,
+                    user_to=user_to,
+                    converted_amount=abs(amount),
+                    agent=agent,
+                    note=note,
+                    dt_due_utc=dt_due_utc
+                )
+
+                session.add(t)
+
+            # modify balances
+            user1.balance = db.User.balance + user1_balance
+            user2.balance = db.User.balance - user1_balance
+            session.add(user1)
+            session.add(user2)
+
+            if not self.ask_confirmation(f"{count} transactions imported, final balance {user1_balance}. Proceed?"):
+                raise Exception("cancelled by user")
+
+            session.commit()
+
     def _execute_order(self, order: db.StandingOrder, session) -> None:
         dt_next_utc = order.dt_next_utc
         if dt_next_utc is None:
@@ -320,6 +417,8 @@ class Mpay:
 
         :param rrule: Recurrence rule. dtstart will be regarded as UTC.
         """
+        name = self.sanitize_order_name(name)
+        recipient_name = self.sanitize_user_name(recipient_name)
 
         if amount <= 0:
             raise ValueError("amount must be greater than zero")
@@ -336,7 +435,7 @@ class Mpay:
                 raise ValueError("recipient user does not exist")
 
             o = db.StandingOrder(
-                name=self.sanitize_order_name(name),
+                name=name,
                 rrule_str=str(rrule),
                 user_from=sender,
                 user_to=recipient,
@@ -352,6 +451,8 @@ class Mpay:
 
         :return: True on success, False otherwise
         """
+        order_name = self.sanitize_order_name(order_name)
+
         with db.Session(self.db_engine) as session:
             try:
                 user = session.query(db.User).filter_by(name=self.config.user).one()

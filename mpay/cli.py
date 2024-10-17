@@ -394,7 +394,44 @@ def main():
     )
     parser_admin_cron.set_defaults(func_mpay=admin_cron)
 
-    # TODO admin import fs csv: must be done in a single transaction!
+    def admin_import(mp: Mpay, args):
+        with args.csv_file as f:
+            df = pd.read_csv(f, sep=args.delimiter)
+        print(df)
+        mp.import_df(
+            df,
+            user1_name=args.user1, user2_name=args.user2,
+            agent_name="csvimport"
+        )
+
+    parser_admin_import = subparsers_admin.add_parser(
+        "import",
+        help="import transactions from csv"
+    )
+    parser_admin_import.set_defaults(func_mpay=admin_import)
+
+    parser_admin_import.add_argument(
+        "csv_file", type=argparse.FileType("r"),
+        help="CSV file to import. Must contain header and the following columns: "
+             "amount, dt_due, note"
+    )
+
+    parser_admin_import.add_argument(
+        "--delimiter", type=str, default=",",
+        help="csv file delimiter, default: %(default)r"
+    )
+
+    parser_admin_import.add_argument(
+        "user1",
+        help="name of user whose balance should be increased by "
+             "a transaction with positive amount"
+    )
+
+    parser_admin_import.add_argument(
+        "user2",
+        help="name of user whose balance should be decreased by "
+             "a transaction with positive amount"
+    )
 
     args = parser.parse_args()
 
