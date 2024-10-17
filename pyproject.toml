@@ -37,3 +37,13 @@ Issues = "https://github.com/ondras12345/mpay/issues"
 
 [project.scripts]
 mpay = "mpay:main"
+
+
+[tool.mypy]
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+disable_error_code = "method-assign"
+# This might come in handy:
+#allow_redefinition = true

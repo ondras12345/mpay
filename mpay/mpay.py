@@ -32,7 +32,7 @@ class Mpay:
         self.config = config
         self.db_engine = db.connect(config.db_url)
 
-    def create_database(self):
+    def create_database(self) -> None:
         db.create_tables(self.db_engine)
 
     @staticmethod
@@ -61,7 +61,7 @@ class Mpay:
                 ret += _print_tag_tree(t, i == len(root_tags)-1)
             return ret
 
-    def _sql2df(self, statement, session):
+    def _sql2df(self, statement, session) -> pd.DataFrame:
         # numpy_nullable can represent an int column with NULL values.
         # This is necessary to prevent converting id to float.
         return pd.read_sql(statement, session.bind,
@@ -265,19 +265,22 @@ class Mpay:
             session.commit()
 
     def _execute_order(self, order: db.StandingOrder, session) -> None:
-        if order.dt_next_utc is None:
+        dt_next_utc = order.dt_next_utc
+        if dt_next_utc is None:
             # expired or disabled order
             return
 
         utc_now = datetime.datetime.now(datetime.timezone.utc)
 
-        while order.dt_next_utc.replace(tzinfo=datetime.timezone.utc) <= utc_now:
+        while (dt_next_utc is not None and
+               dt_next_utc.replace(tzinfo=datetime.timezone.utc) <= utc_now
+               ):
             # pay
             t = db.Transaction(
                 user_from=order.user_from,
                 user_to=order.user_to,
                 converted_amount=order.amount,
-                dt_due_utc=order.dt_next_utc,
+                dt_due_utc=dt_next_utc,
                 standing_order=order
             )
             session.add(t)
@@ -285,10 +288,12 @@ class Mpay:
 
             # schedule next payment
             r = dateutil.rrule.rrulestr(order.rrule_str)
-            prev_utc = order.dt_next_utc
+            prev_utc = dt_next_utc
             # we'll feed it naive utc datetime and get a naive utc result
-            order.dt_next_utc = r.after(order.dt_next_utc)
-            assert order.dt_next_utc > prev_utc
+            new_utc = r.after(dt_next_utc)
+            assert new_utc > prev_utc
+            order.dt_next_utc = new_utc
+            dt_next_utc = new_utc
             session.add(order)
 
             # Important! We need to commit after each call to

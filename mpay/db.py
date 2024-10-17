@@ -30,7 +30,7 @@ class Base(DeclarativeBase):
         "mysql_collate": "utf8mb4_unicode_520_ci",
     }
 
-    __table_args__ = _mysql_args
+    __table_args__: tuple | dict = _mysql_args
 
 
 money_type = Numeric(precision=9, scale=3, asdecimal=True)
@@ -143,7 +143,7 @@ class TransactionTag(Base):
     tag_id: Mapped[int] = mapped_column(ForeignKey(Tag.__tablename__ + ".id"))
 
 
-def connect(db_url: str) -> sqa.engine:
+def connect(db_url: str) -> sqa.engine.Engine:
     engine = create_engine(db_url)
 
     dialect_name = engine.dialect.name

@@ -423,7 +423,7 @@ def main():
 
     mp = Mpay(config)
     if args.assume_no:
-        mp.ask_confirmation = lambda x: False
+        mp.ask_confirmation = lambda question: False
     elif args.assume_yes:
         # leave default ask_confirmation
         pass

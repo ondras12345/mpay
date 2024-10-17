@@ -4,6 +4,7 @@ import typing
 import logging
 import subprocess
 from dataclasses import dataclass
+from typing import Any
 from .const import (
     CONF_USER,
     CONF_DB_URL,
@@ -20,7 +21,7 @@ class Config:
     base_currency: str = "CZK"
 
     @classmethod
-    def from_dict(cls, config_dict: dict):
+    def from_dict(cls, config_dict: dict[str, Any]) -> "Config":
         # TODO validate
 
         user: str = config_dict.get(CONF_USER, os.getenv("USER"))
@@ -30,7 +31,7 @@ class Config:
         db_url = config_dict[CONF_DB_URL]
         if isinstance(db_url, dict):
             db_url = subprocess.check_output(
-                db_url.get("command"),
+                db_url["command"],
                 shell=True, text=True
             )
 
@@ -39,7 +40,7 @@ class Config:
         return config
 
     @classmethod
-    def from_yaml_file(cls, file: typing.TextIO):
+    def from_yaml_file(cls, file: typing.TextIO) -> "Config":
         with file:
             config_dict = yaml.safe_load(file)
         if config_dict is None:
