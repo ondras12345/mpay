@@ -291,7 +291,7 @@ class Mpay:
             prev_utc = dt_next_utc
             # we'll feed it naive utc datetime and get a naive utc result
             new_utc = r.after(dt_next_utc)
-            assert new_utc > prev_utc
+            assert new_utc is None or new_utc > prev_utc
             order.dt_next_utc = new_utc
             dt_next_utc = new_utc
             session.add(order)

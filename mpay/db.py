@@ -97,6 +97,7 @@ class StandingOrder(Base):
     dt_created_utc: Mapped[datetime.datetime] = mapped_column(default=aware_utcnow)
     __table_args__ = (
         UniqueConstraint("name", "user_from_id"),
+        CheckConstraint("user_from_id <> user_to_id"),
         CheckConstraint("amount > 0"),
         Base._mysql_args
     )

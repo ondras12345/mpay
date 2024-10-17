@@ -1,6 +1,7 @@
 import pytest
 import mpay
 import datetime
+import dateutil.rrule
 from decimal import Decimal
 
 
@@ -146,3 +147,71 @@ def test_pay(mpay_w_users):
         assert user.balance == Decimal("3.2")
 
     mp.check()
+
+
+def test_order(mpay_w_users):
+    mp = mpay_w_users
+
+    today = (
+        # utcnow is deprecated
+        # datetime.datetime.utcnow()
+        datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        .replace(hour=0, minute=0, second=0, microsecond=0)
+    )
+
+    start_date = today - datetime.timedelta(days=5)
+
+    # amount must be greater than zero
+    with pytest.raises(ValueError):
+        mp.create_order(name="order1", recipient_name="test2",
+                        amount=Decimal("0"),
+                        rrule=dateutil.rrule.rrule(freq=dateutil.rrule.DAILY))
+
+    # sender must be different than recipient
+    with pytest.raises(Exception):
+        mp.create_order(name="order1", recipient_name="test1",
+                        amount=Decimal("1"),
+                        rrule=dateutil.rrule.rrule(freq=dateutil.rrule.DAILY))
+
+    # this should work
+    mp.create_order(
+        name="order1", recipient_name="test2", amount=Decimal("1"),
+        rrule=dateutil.rrule.rrule(freq=dateutil.rrule.DAILY, dtstart=start_date)
+    )
+
+    # order name must be unique (for this user)
+    with pytest.raises(Exception):
+        mp.create_order(name="order1", recipient_name="test2",
+                        amount=Decimal(1),
+                        rrule=dateutil.rrule.rrule(freq=dateutil.rrule.DAILY))
+
+    # second order with limited duration
+    mp.create_order(
+        name="order2", recipient_name="test2", amount=Decimal("0.01"),
+        rrule=dateutil.rrule.rrule(freq=dateutil.rrule.DAILY, count=3, dtstart=start_date)
+    )
+
+    with mpay.db.Session(mp.db_engine) as session:
+        user = session.query(mpay.db.User).filter_by(name="test2").one()
+        assert user.balance == Decimal("0")
+
+    mp.execute_orders()
+
+    mp.check()
+
+    with mpay.db.Session(mp.db_engine) as session:
+        user = session.query(mpay.db.User).filter_by(name="test2").one()
+        assert user.balance == Decimal("6.03")
+
+        o1 = session.query(mpay.db.StandingOrder).filter_by(name="order1").one()
+        assert o1.dt_next_utc == today + datetime.timedelta(days=1)
+        o2 = session.query(mpay.db.StandingOrder).filter_by(name="order2").one()
+        assert o2.dt_next_utc is None
+
+    assert not mp.disable_order("order1")
+    mp.ask_confirmation = lambda question: True
+    assert mp.disable_order("order1")
+
+    with mpay.db.Session(mp.db_engine) as session:
+        o1 = session.query(mpay.db.StandingOrder).filter_by(name="order1").one()
+        assert o1.dt_next_utc is None
