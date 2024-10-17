@@ -128,7 +128,7 @@ class Transaction(Base):
         CheckConstraint("user_from_id <> user_to_id"),
         # Currently, we don't support adding transactions with future due
         # date.
-        CheckConstraint("dt_due_utc < dt_created_utc"),
+        CheckConstraint("dt_due_utc <= dt_created_utc"),
         Base._mysql_args
     )
 
