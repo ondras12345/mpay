@@ -1,6 +1,7 @@
 import logging
 import datetime
 import argparse
+import argcomplete  # type: ignore
 import pathlib
 import os
 import sys
@@ -432,6 +433,8 @@ def main():
         help="name of user whose balance should be decreased by "
              "a transaction with positive amount"
     )
+
+    argcomplete.autocomplete(parser)
 
     args = parser.parse_args()
 

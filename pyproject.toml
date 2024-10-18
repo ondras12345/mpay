@@ -20,6 +20,7 @@ dependencies = [
     "SQLAlchemy >= 2.0.35",
     "PyMySQL >= 1.1.1",
     "pandas >= 2.2.3",
+    "argcomplete >= 3.5.1",
 ]
 
 
@@ -36,7 +37,7 @@ Issues = "https://github.com/ondras12345/mpay/issues"
 
 
 [project.scripts]
-mpay = "mpay:main"
+mpay = "mpay:__main__"
 
 
 [tool.mypy]

@@ -11,6 +11,11 @@ It is recommended to install via [`pipx`](https://github.com/pypa/pipx):
 pipx install git+https://github.com/ondras12345/mpay.git
 ```
 
+Optional: register tab completion
+```sh
+eval "$(register-python-argcomplete mpay)"
+```
+
 ### Setup
 You need to create a config file in `$XDG_CONFIG_HOME/mpay/config.yaml`
 on GNU/Linux, or `%APPDATA$\mpay\config.yaml` on Windows:
