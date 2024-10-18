@@ -181,18 +181,6 @@ class Mpay:
             session.add(a)
             session.commit()
 
-    def _execute_transaction(self, t: db.Transaction):
-        """Update users' balance based on specified transaction.
-
-        IMPORTANT: It is necessary to call session.flush() after each call to
-        this function. SqlAlchemy seems to only execute the last UPDATE
-        statement if called multiple times.
-        """
-        _LOGGER.debug("_execute_transaction %r", t)
-        # cannot use +=, we need the addition to be done by the database
-        t.user_from.balance = db.User.balance - t.converted_amount
-        t.user_to.balance = db.User.balance + t.converted_amount
-
     def pay(
         self,
         recipient_name: str,
@@ -267,7 +255,6 @@ class Mpay:
                 tags=tags,
             )
             session.add(t)
-            self._execute_transaction(t)
             session.commit()
 
     def import_df(
@@ -351,13 +338,9 @@ class Mpay:
 
                 session.add(t)
 
-            # modify balances
-            user1.balance = db.User.balance + user1_balance
-            user2.balance = db.User.balance - user1_balance
-            session.add(user1)
-            session.add(user2)
-
-            if not self.ask_confirmation(f"{count} transactions imported, final balance {user1_balance}. Proceed?"):
+            if not self.ask_confirmation(f"{count} transactions imported, "
+                                         f"final balance difference for user1: {user1_balance}. "
+                                         "Proceed?"):
                 raise Exception("cancelled by user")
 
             session.commit()
@@ -382,7 +365,6 @@ class Mpay:
                 standing_order=order
             )
             session.add(t)
-            self._execute_transaction(t)
 
             # schedule next payment
             r = dateutil.rrule.rrulestr(order.rrule_str)
@@ -394,9 +376,6 @@ class Mpay:
             dt_next_utc = new_utc
             session.add(order)
 
-            # Important! We need to flush after each call to
-            # _execute_transaction.
-            session.flush()
         session.commit()
 
     def execute_orders(self) -> None:

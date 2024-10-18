@@ -19,6 +19,9 @@ def test_init():
 
 def test_check(mpay_in_memory):
     mp = mpay_in_memory
+
+    mp.check()
+
     with mpay.db.Session(mp.db_engine) as session:
         u1 = mpay.db.User(name="u1", balance=Decimal("12.3"))
         session.add(u1)
@@ -37,11 +40,33 @@ def test_check(mpay_in_memory):
     with pytest.raises(AssertionError):
         mp.check()
 
+    # Create the transaction. We need to change the balances first, since
+    # creating the transaction will cause the trigger to fire.
     with mpay.db.Session(mp.db_engine) as session:
+        u1 = session.query(mpay.db.User).filter_by(name="u1").one()
+        u1.balance = 0
+        session.add(u1)
+
+        u2 = session.query(mpay.db.User).filter_by(name="u2").one()
+        u2.balance = 0
+        session.add(u2)
+
+        # probably unnecessary
+        session.flush()
+
+        assert u1.balance == 0
+
         t = mpay.db.Transaction(user_from=u2, user_to=u1,
                                 converted_amount=Decimal("12.3"),
                                 dt_due_utc=mpay.db.aware_utcnow())
         session.add(t)
+
+        # See if the User object got updated
+        # TODO sqlalchemy ORM does not know the trigger ran, we need to expire
+        # the User manually.
+        session.expire(u1, ["balance"])
+        assert u1.balance == Decimal("12.3")
+
         session.commit()
 
     # now it should be fixed

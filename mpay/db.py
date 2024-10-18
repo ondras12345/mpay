@@ -3,7 +3,7 @@ import logging
 import sqlalchemy as sqa
 from sqlalchemy import (
     create_engine, ForeignKey, PrimaryKeyConstraint, CheckConstraint,
-    UniqueConstraint, String, Table, Column, Integer
+    UniqueConstraint, String, Table, Column, Integer, DDL
 )
 
 from sqlalchemy.orm import (
@@ -45,6 +45,11 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(32), unique=True)
     balance: Mapped[Decimal] = mapped_column(money_type)
+
+    # TODO expire User.balance after transaction trigger changes their balance
+    # - there seems to be no easy way to do that from here. It would be
+    # possible by adding an event for session.flush.
+
     # This could use a deferred constraint checking that SUM(balance) = 0,
     # but I don't think MySQL supports that.
 
@@ -132,6 +137,45 @@ class Transaction(Base):
         CheckConstraint("dt_due_utc <= dt_created_utc"),
         Base._mysql_args
     )
+
+
+sqa.event.listen(
+    Transaction.__table__, "after_create",
+    DDL(f"""
+    CREATE TRIGGER update_balance_update AFTER UPDATE ON {Transaction.__tablename__}
+    FOR EACH ROW
+    BEGIN
+        UPDATE {User.__tablename__} SET balance = balance + OLD.converted_amount WHERE id = OLD.user_from_id;
+        UPDATE {User.__tablename__} SET balance = balance - OLD.converted_amount WHERE id = OLD.user_to_id;
+        UPDATE {User.__tablename__} SET balance = balance - NEW.converted_amount WHERE id = NEW.user_from_id;
+        UPDATE {User.__tablename__} SET balance = balance + NEW.converted_amount WHERE id = NEW.user_to_id;
+    END;
+    """)
+)
+
+sqa.event.listen(
+    Transaction.__table__, "after_create",
+    DDL(f"""
+    CREATE TRIGGER update_balance_insert AFTER INSERT ON {Transaction.__tablename__}
+    FOR EACH ROW
+    BEGIN
+        UPDATE {User.__tablename__} SET balance = balance - NEW.converted_amount WHERE id = NEW.user_from_id;
+        UPDATE {User.__tablename__} SET balance = balance + NEW.converted_amount WHERE id = NEW.user_to_id;
+    END;
+    """)
+)
+
+sqa.event.listen(
+    Transaction.__table__, "after_create",
+    DDL(f"""
+    CREATE TRIGGER update_balance_delete AFTER DELETE ON {Transaction.__tablename__}
+    FOR EACH ROW
+    BEGIN
+        UPDATE {User.__tablename__} SET balance = balance + OLD.converted_amount WHERE id = OLD.user_from_id;
+        UPDATE {User.__tablename__} SET balance = balance - OLD.converted_amount WHERE id = OLD.user_to_id;
+    END;
+    """)
+)
 
 
 transactions_tags = Table(
