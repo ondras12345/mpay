@@ -3,7 +3,7 @@ import logging
 import sqlalchemy as sqa
 from sqlalchemy import (
     create_engine, ForeignKey, PrimaryKeyConstraint, CheckConstraint,
-    UniqueConstraint, String
+    UniqueConstraint, String, Table, Column, Integer
 )
 
 from sqlalchemy.orm import (
@@ -134,14 +134,15 @@ class Transaction(Base):
     )
 
 
-class TransactionTag(Base):
-    __tablename__ = "transactions_tags"
-    __table_args__ = (
-        PrimaryKeyConstraint("transaction_id", "tag_id"),
-        Base._mysql_args
-    )
-    transaction_id: Mapped[int] = mapped_column(ForeignKey(Transaction.__tablename__ + ".id"))
-    tag_id: Mapped[int] = mapped_column(ForeignKey(Tag.__tablename__ + ".id"))
+transactions_tags = Table(
+    "transactions_tags",
+    Base.metadata,
+    Column("transaction_id", Integer,
+           ForeignKey(Transaction.__tablename__ + ".id", ondelete="CASCADE")),
+    Column("tag_id", Integer,
+           ForeignKey(Tag.__tablename__ + ".id", ondelete="CASCADE")),
+    PrimaryKeyConstraint("transaction_id", "tag_id"),
+)
 
 
 def connect(db_url: str) -> sqa.engine.Engine:

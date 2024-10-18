@@ -215,3 +215,41 @@ def test_order(mpay_w_users):
     with mpay.db.Session(mp.db_engine) as session:
         o1 = session.query(mpay.db.StandingOrder).filter_by(name="order1").one()
         assert o1.dt_next_utc is None
+
+
+def test_delete_tag(mpay_w_users, caplog):
+    # run pytest -o log_cli=true
+    # import logging
+    # caplog.set_level(logging.DEBUG)
+    # caplog.set_level(logging.DEBUG, logger="sqlalchemy.engine")
+
+    mp = mpay_w_users
+
+    mp.create_tag("tag1")
+
+    mp.pay(recipient_name="test2", converted_amount=Decimal("0.3"),
+           due=datetime.datetime(2004, 1, 3), tag_names=["tag1"])
+
+    with mpay.db.Session(mp.db_engine) as session:
+        tag1 = session.query(mpay.db.Tag).filter_by(name="tag1").one()
+        assert len(tag1.transactions) == 1
+        transaction = tag1.transactions[0]
+        assert transaction.tags == [tag1]
+
+        # this should delete the tag without raising any exception
+        session.delete(tag1)
+
+        # The transaction should immediately know about it - or so I thought.
+        # As it turns out, sqlalchemy will delete the transactions_tags
+        # association even if I don't set ON DELETE CASCADE, but it does not
+        # notify the transaction object for some reason.
+        # assert transaction.tags == []
+
+        session.commit()
+
+    with mpay.db.Session(mp.db_engine) as session:
+        tag1 = session.query(mpay.db.Tag).filter_by(name="tag1").one_or_none()
+        assert tag1 is None
+
+        transaction = session.query(mpay.db.Transaction).one()
+        assert transaction.tags == []
