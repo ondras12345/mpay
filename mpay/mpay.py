@@ -321,6 +321,7 @@ class Mpay:
             user1_balance = Decimal("0")
             count = 0
             for _, row in df.iterrows():
+                _LOGGER.debug("import row: %r", row)
                 amount = Decimal(row.amount)
                 if amount > 0:
                     user_from, user_to = user2, user1
