@@ -184,9 +184,9 @@ class Mpay:
     def _execute_transaction(self, t: db.Transaction):
         """Update users' balance based on specified transaction.
 
-        IMPORTANT: This will only work once per transaction. SqlAlchemy seems
-        to only execute the last UPDATE statement if called multiple times.
-        Call session.commit() after executing each transaction.
+        IMPORTANT: It is necessary to call session.flush() after each call to
+        this function. SqlAlchemy seems to only execute the last UPDATE
+        statement if called multiple times.
         """
         _LOGGER.debug("_execute_transaction %r", t)
         # cannot use +=, we need the addition to be done by the database
@@ -394,9 +394,10 @@ class Mpay:
             dt_next_utc = new_utc
             session.add(order)
 
-            # Important! We need to commit after each call to
+            # Important! We need to flush after each call to
             # _execute_transaction.
-            session.commit()
+            session.flush()
+        session.commit()
 
     def execute_orders(self) -> None:
         with db.Session(self.db_engine) as session:
