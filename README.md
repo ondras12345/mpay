@@ -18,7 +18,7 @@ eval "$(register-python-argcomplete mpay)"
 
 ### Setup
 You need to create a config file in `$XDG_CONFIG_HOME/mpay/config.yaml`
-on GNU/Linux, or `%APPDATA$\mpay\config.yaml` on Windows:
+on GNU/Linux, or `%APPDATA%\mpay\config.yaml` on Windows:
 ```yaml
 user: your_username  # optional, will use $USER if omitted
 db_url: "sqlite:////home/user/path/to/mpay.db"
@@ -63,7 +63,7 @@ mpay admin check
 ## Development
 Install in a venv:
 ```
-pip3 install --editable .
+pip3 install --editable '.[dev]'
 ```
 
 Set up pre-commit:
