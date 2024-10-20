@@ -40,7 +40,8 @@ db_url:
 This project uses SQLAlchemy to access the database, so other RDBMSs might work
 too, but I haven't tested them.
 It is a good idea to at least run the tests located in `tests/` directory
-against your database.
+against your database. You should also `grep` the source codes for `dialect`
+and review what RDBMS-specific tweaks there are.
 
 Create the database tables:
 ```sh

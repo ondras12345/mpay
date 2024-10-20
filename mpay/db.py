@@ -3,7 +3,7 @@ import logging
 import sqlalchemy as sqa
 from sqlalchemy import (
     create_engine, ForeignKey, PrimaryKeyConstraint, CheckConstraint,
-    UniqueConstraint, String, Table, Column, Integer, DDL
+    UniqueConstraint, String, Table, Column, Integer, DDL, insert
 )
 
 from sqlalchemy.orm import (
@@ -208,3 +208,20 @@ def connect(db_url: str) -> sqa.engine.Engine:
 
 def create_tables(db_engine) -> None:
     Base.metadata.create_all(db_engine)
+
+    # Populate currencies table with most commonly used values.
+    with Session(db_engine) as session:
+        CURRENCIES = {
+            "USD": "United States dollar",
+            "EUR": "Euro",
+        }
+        session.execute(
+            insert(Currency)
+            .prefix_with("OR IGNORE", dialect="sqlite")
+            .prefix_with("IGNORE", dialect="mysql"),
+            [
+                {"iso_4217": iso_4217, "name": name}
+                for iso_4217, name in CURRENCIES.items()
+            ],
+        )
+        session.commit()
