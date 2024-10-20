@@ -64,17 +64,24 @@ class Currency(Base):
 class Tag(Base):
     __tablename__ = "tags"
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(32), unique=True)
+    name: Mapped[str] = mapped_column(String(32))
     description: Mapped[Optional[str]] = mapped_column(String(255))
     transactions: Mapped[list["Transaction"]] = relationship(secondary="transactions_tags", back_populates="tags")
     parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey(__tablename__ + ".id"))
     parent: Mapped[Optional["Tag"]] = relationship(back_populates="children", remote_side=[id])
     children: Mapped[list["Tag"]] = relationship(back_populates="parent")
     __table_args__ = (
+        UniqueConstraint("name", "parent_id"),
         # MySQL does not like CHECK on AUTO_INCREMENT column, hence the ddl_if
         CheckConstraint("parent_id <> id", "parent_not_self").ddl_if(dialect="sqlite"),
         Base._mysql_args
     )
+
+    @property
+    def hierarchical_name(self):
+        if self.parent is None:
+            return self.name
+        return self.parent.hierarchical_name + "/" + self.name
 
 
 class Agent(Base):

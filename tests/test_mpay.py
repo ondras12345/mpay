@@ -135,7 +135,7 @@ def test_pay(mpay_w_users):
     # missing tags
     with pytest.raises(ValueError):
         mp.pay(recipient_name="test2", converted_amount=Decimal("12.3"),
-               due=datetime.datetime(2004, 1, 1), tag_names=["tag1", "tag2"])
+               due=datetime.datetime(2004, 1, 1), tag_hierarchical_names=["tag1", "tag2"])
 
     # missing agent
     with pytest.raises(ValueError):
@@ -152,7 +152,7 @@ def test_pay(mpay_w_users):
 
     # can add existing tags
     mp.pay(recipient_name="test2", converted_amount=Decimal("0.3"),
-           due=datetime.datetime(2004, 1, 3), tag_names=["tag1"])
+           due=datetime.datetime(2004, 1, 3), tag_hierarchical_names=["tag1"])
 
     # works with existing agent
     mp.create_agent("agent1", "agent1 description")
@@ -253,7 +253,7 @@ def test_delete_tag(mpay_w_users, caplog):
     mp.create_tag("tag1")
 
     mp.pay(recipient_name="test2", converted_amount=Decimal("0.3"),
-           due=datetime.datetime(2004, 1, 3), tag_names=["tag1"])
+           due=datetime.datetime(2004, 1, 3), tag_hierarchical_names=["tag1"])
 
     with mpay.db.Session(mp.db_engine) as session:
         tag1 = session.query(mpay.db.Tag).filter_by(name="tag1").one()
@@ -278,3 +278,25 @@ def test_delete_tag(mpay_w_users, caplog):
 
         transaction = session.query(mpay.db.Transaction).one()
         assert transaction.tags == []
+
+
+def test_hierarchical_tag(mpay_w_users):
+    mp = mpay_w_users
+
+    with pytest.raises(ValueError):
+        mp.pay(recipient_name="test2", converted_amount=Decimal("12.3"),
+               due=datetime.datetime(2004, 1, 1), tag_hierarchical_names=["tag1", "a/b/tag2"])
+
+    mp.ask_confirmation = lambda question: True
+
+    mp.pay(recipient_name="test2", converted_amount=Decimal("12.3"),
+           due=datetime.datetime(2004, 1, 1), tag_hierarchical_names=["tag1", "a/b/tag2"])
+
+    with mpay.db.Session(mp.db_engine) as session:
+        tag1 = session.query(mpay.db.Tag).filter_by(name="tag1").one()
+        assert tag1.parent is None
+
+        tag2 = session.query(mpay.db.Tag).filter_by(name="tag2").one()
+        assert tag2.parent.name == "b"
+        assert tag2.parent.parent.name == "a"
+        assert tag2.parent.parent.parent is None

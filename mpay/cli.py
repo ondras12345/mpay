@@ -150,7 +150,7 @@ def main():
             agent_name=args.agent,
             due=args.due,
             note=args.note,
-            tag_names=args.tags
+            tag_hierarchical_names=args.tags
         )
 
     parser_pay = subparsers.add_parser(
@@ -193,7 +193,7 @@ def main():
     parser_pay.add_argument(
         "--tags",
         type=lambda t: [s.strip() for s in t.split(",")],
-        help="comma separated list of tags"
+        help="comma separated list of tags (e.g. tag1,a/b/tag2)"
     )
 
     def history(mp: Mpay, args):
@@ -234,7 +234,7 @@ def main():
         mp.create_tag(
             tag_name=args.name,
             description=args.description,
-            parent_name=args.parent
+            parent_hierarchical_name=args.parent
         )
 
     parser_tag_create = subparsers_tag.add_parser(
@@ -253,7 +253,7 @@ def main():
 
     parser_tag_create.add_argument(
         "--parent",
-        help="parent tag in tree structure"
+        help="hierarchical name of parent tag in tree structure"
     )
 
     parser_order = subparsers.add_parser(

@@ -89,6 +89,7 @@ class Mpay:
                     # Standing order name is not unique! (user_from, name) is,
                     # but that's too many columns.
                     db.Transaction.standing_order_id,
+                    # TODO db.Tag; name is not unique!
                     db.Transaction.note,
                     db.Transaction.dt_due_utc,
                     db.Transaction.dt_created_utc,
@@ -152,20 +153,53 @@ class Mpay:
             raise ValueError("agent name can only contain letters, numbers, dash and underscore")
         return agent_name
 
+    def find_tag(self, hierarchical_name: str, session) -> db.Tag:
+        """Find a tag by its hierarchical_name."""
+        path = hierarchical_name.strip().split("/")
+
+        parent = None
+        for t in path:
+            current: db.Tag = session.query(db.Tag).filter_by(name=t, parent=parent).one()
+            parent = current
+
+        return current
+
+    def create_hierarchical_tag(self, hierarchical_name: str, session) -> db.Tag:
+        """Create a tag from a hierarchical_name.
+
+        Creates parent tags as necessary. If the tag already exists, no error
+        is raised and the existing tag is returned.
+
+        Setting description is not supported, because this might create more
+        than one tag.
+        """
+        path = hierarchical_name.strip().split("/")
+
+        parent = None
+        for t in path:
+            current: Optional[db.Tag] = session.query(db.Tag).filter_by(name=t, parent=parent).one_or_none()
+            if current is None:
+                current = db.Tag(name=self.sanitize_tag_name(t), parent=parent)
+                session.add(current)
+            parent = current
+
+        assert current is not None  # make mypy happy
+        return current
+
     def create_tag(
             self,
             tag_name: str,
             description: Optional[str] = None,
-            parent_name: Optional[str] = None
+            parent_hierarchical_name: Optional[str] = None
     ) -> None:
         tag_name = self.sanitize_tag_name(tag_name)
         with db.Session(self.db_engine) as session:
             parent = None
-            if parent_name is not None:
+            if parent_hierarchical_name is not None:
                 try:
-                    parent = session.query(db.Tag).filter_by(name=parent_name).one()
+                    parent = self.find_tag(parent_hierarchical_name, session)
                 except sqa.exc.NoResultFound:
-                    raise ValueError(f"parent tag '{parent_name}' does not exist")
+                    raise ValueError(f"parent tag '{parent_hierarchical_name}' does not exist")
             t = db.Tag(name=tag_name, description=description, parent=parent)
             session.add(t)
             session.commit()
@@ -190,7 +224,7 @@ class Mpay:
         original_amount: Optional[Decimal] = None,
         agent_name: Optional[str] = None,
         note: Optional[str] = None,
-        tag_names: list[str] = [],
+        tag_hierarchical_names: list[str] = [],
     ):
         recipient_name = self.sanitize_user_name(recipient_name)
 
@@ -233,14 +267,13 @@ class Mpay:
             due_utc = due.astimezone(datetime.timezone.utc)
 
             tags = []
-            for tag_name in tag_names:
-                tag_name = self.sanitize_tag_name(tag_name)
+            for tag_hierarchical_name in tag_hierarchical_names:
                 try:
-                    tag = session.query(db.Tag).filter_by(name=tag_name).one()
+                    tag = self.find_tag(tag_hierarchical_name, session)
                 except sqa.exc.NoResultFound:
-                    if not self.ask_confirmation(f"Tag {tag_name} does not exist. Create?"):
-                        raise ValueError(f"tag {tag_name} does not exist")
-                    tag = db.Tag(name=tag_name)
+                    if not self.ask_confirmation(f"Tag {tag_hierarchical_name} does not exist. Create?"):
+                        raise ValueError(f"tag {tag_hierarchical_name} does not exist")
+                    tag = self.create_hierarchical_tag(tag_hierarchical_name, session)
                 tags.append(tag)
 
             t = db.Transaction(
