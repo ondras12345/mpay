@@ -292,11 +292,20 @@ def test_hierarchical_tag(mpay_w_users):
     mp.pay(recipient_name="test2", converted_amount=Decimal("12.3"),
            due=datetime.datetime(2004, 1, 1), tag_hierarchical_names=["tag1", "a/b/tag2"])
 
+    # /tag2 is not a duplicate of a/b/tag2:
+    mp.pay(recipient_name="test2", converted_amount=Decimal("12.3"),
+           due=datetime.datetime(2004, 1, 1), tag_hierarchical_names=["tag2"])
+
     with mpay.db.Session(mp.db_engine) as session:
         tag1 = session.query(mpay.db.Tag).filter_by(name="tag1").one()
         assert tag1.parent is None
 
-        tag2 = session.query(mpay.db.Tag).filter_by(name="tag2").one()
-        assert tag2.parent.name == "b"
-        assert tag2.parent.parent.name == "a"
-        assert tag2.parent.parent.parent is None
+        b = session.query(mpay.db.Tag).filter_by(name="b").one()
+        a_b_tag2 = session.query(mpay.db.Tag).filter_by(name="tag2", parent=b).one()
+        assert a_b_tag2.parent.name == "b"
+        assert a_b_tag2.parent.parent.name == "a"
+        assert a_b_tag2.parent.parent.parent is None
+        assert a_b_tag2.hierarchical_name == "a/b/tag2"
+
+        tag2 = session.query(mpay.db.Tag).filter_by(name="tag2", parent=None).one()
+        assert tag2.hierarchical_name == "tag2"
