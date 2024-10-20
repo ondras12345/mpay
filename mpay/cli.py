@@ -453,7 +453,10 @@ def main():
     if not args.func_mpay:
         raise NotImplementedError("this might be needed for commands that should not connect to the db")
 
-    config: Config = Config.from_yaml_file(args.config_file)
+    try:
+        config: Config = Config.from_yaml_file(args.config_file)
+    except Exception as e:
+        sys.exit(f"Error reading config file: {str(e)}")
 
     if args.override_user is not None:
         _LOGGER.warning("override user: %s", args.override_user)
@@ -475,8 +478,7 @@ def main():
         sys.exit(ret if ret is not None else 0)
     # print "expected" Mpay exceptions w/o stack trace
     except ValueError as e:
-        print(f"Error: {str(e)}")
-        sys.exit(1)
+        sys.exit(f"Error: {str(e)}")
     except Exception:
         _LOGGER.exception("unexpected exception")
-        sys.exit(1)
+        sys.exit("unexpected exception")
