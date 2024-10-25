@@ -99,7 +99,7 @@ class StandingOrder(Base):
     user_from: Mapped[User] = relationship(foreign_keys=[user_from_id])
     user_to_id: Mapped[int] = mapped_column(ForeignKey(User.__tablename__ + ".id"))
     user_to: Mapped[User] = relationship(foreign_keys=[user_to_id])
-    amount: Mapped[Decimal] = mapped_column(money_type)
+    amount: Mapped[Decimal] = mapped_column(money_type, CheckConstraint("amount > 0"))
     note: Mapped[Optional[str]] = mapped_column(String(255))
     # rrule dtstart is stored as a naive UTC datetime
     rrule_str: Mapped[str] = mapped_column(String(255))
@@ -110,7 +110,6 @@ class StandingOrder(Base):
     __table_args__ = (
         UniqueConstraint("name", "user_from_id"),
         CheckConstraint("user_from_id <> user_to_id"),
-        CheckConstraint("amount > 0"),
         Base._mysql_args
     )
 
