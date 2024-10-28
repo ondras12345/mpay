@@ -17,6 +17,29 @@ def test_init():
     mp.check()
 
 
+@pytest.fixture
+def mpay_in_memory():
+    config = mpay.Config(user="test1", db_url="sqlite:///")
+    mp = mpay.Mpay(config)
+    mp.ask_confirmation = lambda question: False
+    mp.create_database()
+    return mp
+
+
+@pytest.fixture
+def mpay_w_users(mpay_in_memory):
+    mp = mpay_in_memory
+    mp.create_user("test1")
+    mp.create_user("test2")
+    return mp
+
+
+def test_init_twice(mpay_in_memory):
+    mp = mpay_in_memory
+    # the currencies upsert should not fail:
+    mp.create_database()
+
+
 def test_check(mpay_in_memory):
     mp = mpay_in_memory
 
@@ -73,15 +96,6 @@ def test_check(mpay_in_memory):
     mp.check()
 
 
-@pytest.fixture
-def mpay_in_memory():
-    config = mpay.Config(user="test1", db_url="sqlite:///")
-    mp = mpay.Mpay(config)
-    mp.ask_confirmation = lambda question: False
-    mp.create_database()
-    return mp
-
-
 def test_user(mpay_in_memory):
     mp = mpay_in_memory
 
@@ -102,14 +116,6 @@ def test_user(mpay_in_memory):
     users = mp.get_users_dataframe()
     assert len(users) == 2
     assert set(users["name"]) == {"test1", "u2"}
-
-
-@pytest.fixture
-def mpay_w_users(mpay_in_memory):
-    mp = mpay_in_memory
-    mp.create_user("test1")
-    mp.create_user("test2")
-    return mp
 
 
 def test_pay(mpay_w_users):
