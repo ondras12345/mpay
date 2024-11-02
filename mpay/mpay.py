@@ -1,3 +1,9 @@
+"""Main mpay module.
+
+This module defines the Mpay class which implements various operations
+the user might want to do with the database in a UI-independent way.
+"""
+
 import datetime
 import re
 import logging

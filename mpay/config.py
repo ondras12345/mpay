@@ -1,3 +1,5 @@
+"""Mpay config file parser."""
+
 import yaml
 import os
 import typing

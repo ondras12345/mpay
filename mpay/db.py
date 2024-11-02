@@ -1,3 +1,5 @@
+"""SQL database schema definition."""
+
 import datetime
 import logging
 import sqlalchemy as sqa

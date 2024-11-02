@@ -1,3 +1,5 @@
+"""Command line interface for mpay."""
+
 import logging
 import datetime
 import argparse
