@@ -20,6 +20,9 @@ from sqlalchemy.types import Numeric
 
 from typing import Optional
 from decimal import Decimal
+import alembic
+import alembic.config
+import pathlib
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -212,6 +215,17 @@ transactions_tags = Table(
 )
 
 
+def alembic_config(db_engine) -> alembic.config.Config:
+    alembic_cfg_file = pathlib.Path(__file__).parents[0] / "alembic.ini"
+    _LOGGER.debug("alembic config file: %s", alembic_cfg_file)
+    if not alembic_cfg_file.exists():
+        raise Exception(f"Alembic config file does not exist: {alembic_cfg_file}")
+    alembic_cfg = alembic.config.Config(alembic_cfg_file)
+    alembic_cfg.set_main_option("sqlalchemy.url", "")
+    alembic_cfg.attributes["engine"] = db_engine
+    return alembic_cfg
+
+
 def connect(db_url: str) -> sqa.engine.Engine:
     engine = create_engine(db_url)
 
@@ -229,8 +243,31 @@ def connect(db_url: str) -> sqa.engine.Engine:
     return engine
 
 
-def create_tables(db_engine) -> None:
-    Base.metadata.create_all(db_engine)
+def check_revision(db_engine) -> bool:
+    """Check whether the connected database has a compatible schema."""
+    with db_engine.connect() as conn:
+        context = alembic.runtime.migration.MigrationContext.configure(conn)
+        current_rev = context.get_current_revision()
+    _LOGGER.debug("Database schema revision: %s", current_rev)
+
+    alembic_cfg = alembic_config(db_engine)
+    head = alembic.script.ScriptDirectory.from_config(alembic_cfg).get_current_head()
+    _LOGGER.debug("Alembic head: %s", head)
+    return current_rev == head
+
+
+def setup_database(db_engine) -> None:
+    """Create database or upgrade database schema."""
+    # We could theoretically speed up the process of creating a database
+    # from scratch by calling
+    # Base.metadata.create_all(db_engine)
+    # And then tagging the current state as 'head'.
+    # However, that might result in inconsistencies compared to databases
+    # created with alembic. It does not seem necessary to implement this at
+    # this time.
+
+    alembic_cfg = alembic_config(db_engine)
+    alembic.command.upgrade(alembic_cfg, "head")
 
     # Populate currencies table with most commonly used values.
     with Session(db_engine) as session:

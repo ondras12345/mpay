@@ -33,13 +33,22 @@ def _print_tag_tree(tag: db.Tag, last: bool = True, header: str = "") -> str:
     return ret
 
 
+class MpayException(Exception):
+    pass
+
+
+class MpayValueError(ValueError, MpayException):
+    pass
+
+
 class Mpay:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, setup_database: bool = False):
         self.config = config
         self.db_engine = db.connect(config.db_url)
-
-    def create_database(self) -> None:
-        db.create_tables(self.db_engine)
+        if setup_database:
+            db.setup_database(self.db_engine)
+        elif not db.check_revision(self.db_engine):
+            raise MpayException("Database revision does not match.")
 
     @staticmethod
     def ask_confirmation(question: str) -> bool:
@@ -132,31 +141,31 @@ class Mpay:
     def sanitize_user_name(self, username: str) -> str:
         username = username.strip()
         if not re.match(r"^[a-z0-9_]+$", username):
-            raise ValueError("username can only contain lowercase letters, numbers and underscore")
+            raise MpayValueError("username can only contain lowercase letters, numbers and underscore")
         return username
 
     def sanitize_tag_name(self, tag_name: str) -> str:
         tag_name = tag_name.strip()
         if not tag_name:
-            raise ValueError("tag name must not be empty")
+            raise MpayValueError("tag name must not be empty")
         if not re.match(r"^[a-zA-Z0-9_-]+$", tag_name):
-            raise ValueError("tag name can only contain letters, numbers, dash and underscore")
+            raise MpayValueError("tag name can only contain letters, numbers, dash and underscore")
         return tag_name
 
     def sanitize_order_name(self, order_name: str) -> str:
         order_name = order_name.strip()
         if not order_name:
-            raise ValueError("order name must not be empty")
+            raise MpayValueError("order name must not be empty")
         if not re.match(r"^[a-zA-Z0-9_-]+$", order_name):
-            raise ValueError("order name can only contain letters, numbers, dash and underscore")
+            raise MpayValueError("order name can only contain letters, numbers, dash and underscore")
         return order_name
 
     def sanitize_agent_name(self, agent_name: str) -> str:
         agent_name = agent_name.strip()
         if not agent_name:
-            raise ValueError("agent name must not be empty")
+            raise MpayValueError("agent name must not be empty")
         if not re.match(r"^[a-zA-Z0-9_-]+$", agent_name):
-            raise ValueError("agent name can only contain letters, numbers, dash and underscore")
+            raise MpayValueError("agent name can only contain letters, numbers, dash and underscore")
         return agent_name
 
     def find_tag(self, hierarchical_name: str, session) -> db.Tag:
@@ -205,7 +214,7 @@ class Mpay:
                 try:
                     parent = self.find_tag(parent_hierarchical_name, session)
                 except sqa.exc.NoResultFound:
-                    raise ValueError(f"parent tag '{parent_hierarchical_name}' does not exist")
+                    raise MpayException(f"parent tag '{parent_hierarchical_name}' does not exist")
             t = db.Tag(name=tag_name, description=description, parent=parent)
             session.add(t)
             session.commit()
@@ -238,24 +247,24 @@ class Mpay:
             try:
                 sender = session.query(db.User).filter_by(name=self.config.user).one()
             except sqa.exc.NoResultFound:
-                raise ValueError("current user does not exist in the database")
+                raise MpayException("current user does not exist in the database")
 
             try:
                 recipient = session.query(db.User).filter_by(name=recipient_name).one()
             except sqa.exc.NoResultFound:
-                raise ValueError("recipient user does not exist")
+                raise MpayException("recipient user does not exist")
 
             # This is already checked by the db, but a python check will give
             # a more user-friendly error message.
             if sender == recipient:
-                raise ValueError("recipient must not be the same as the current user")
+                raise MpayException("recipient must not be the same as the current user")
 
             currency = None
             if original_currency is not None:
                 try:
                     currency = session.query(db.Currency).filter_by(iso_4217=original_currency).one()
                 except sqa.exc.NoResultFound:
-                    raise ValueError("original_currency is not a known currency")
+                    raise MpayValueError("original_currency is not a known currency")
 
             agent = None
             if agent_name is not None:
@@ -263,7 +272,7 @@ class Mpay:
                 agent = session.query(db.Agent).filter_by(name=agent_name).one_or_none()
                 if agent is None:
                     if not self.ask_confirmation(f"Agent {agent_name} does not exist. Create?"):
-                        raise ValueError(f"agent {agent_name} does not exist")
+                        raise MpayException(f"agent {agent_name} does not exist")
                     agent = db.Agent(name=agent_name)
 
             # This should just work. If user enters "naive" timestamp on the
@@ -278,7 +287,7 @@ class Mpay:
                     tag = self.find_tag(tag_hierarchical_name, session)
                 except sqa.exc.NoResultFound:
                     if not self.ask_confirmation(f"Tag {tag_hierarchical_name} does not exist. Create?"):
-                        raise ValueError(f"tag {tag_hierarchical_name} does not exist")
+                        raise MpayException(f"tag {tag_hierarchical_name} does not exist")
                     tag = self.create_hierarchical_tag(tag_hierarchical_name, session)
                 tags.append(tag)
 
@@ -331,18 +340,18 @@ class Mpay:
             agent = session.query(db.Agent).filter_by(name=agent_name).one_or_none()
             if agent is None:
                 if not self.ask_confirmation(f"Agent {agent_name} does not exist. Create?"):
-                    raise ValueError(f"agent {agent_name} does not exist")
+                    raise MpayException(f"agent {agent_name} does not exist")
                 agent = db.Agent(name=agent_name)
                 session.add(agent)
 
             try:
                 user1 = session.query(db.User).filter_by(name=user1_name).one()
             except sqa.exc.NoResultFound:
-                raise ValueError(f"user1 ({user1_name}) does not exist")
+                raise MpayException(f"user1 ({user1_name}) does not exist")
             try:
                 user2 = session.query(db.User).filter_by(name=user2_name).one()
             except sqa.exc.NoResultFound:
-                raise ValueError(f"user2 ({user2_name}) does not exist")
+                raise MpayException(f"user2 ({user2_name}) does not exist")
 
             user1_balance = Decimal("0")
             count = 0
@@ -354,7 +363,7 @@ class Mpay:
                 elif amount < 0:
                     user_from, user_to = user1, user2
                 else:
-                    raise ValueError("amount must be non-zero")
+                    raise MpayValueError("amount must be non-zero")
 
                 note: Optional[str] = row.note
                 # convert empty string to None
@@ -441,18 +450,18 @@ class Mpay:
         recipient_name = self.sanitize_user_name(recipient_name)
 
         if amount <= 0:
-            raise ValueError("amount must be greater than zero")
+            raise MpayValueError("amount must be greater than zero")
 
         with db.Session(self.db_engine) as session:
             try:
                 sender = session.query(db.User).filter_by(name=self.config.user).one()
             except sqa.exc.NoResultFound:
-                raise ValueError("current user does not exist in the database")
+                raise MpayException("current user does not exist in the database")
 
             try:
                 recipient = session.query(db.User).filter_by(name=recipient_name).one()
             except sqa.exc.NoResultFound:
-                raise ValueError("recipient user does not exist")
+                raise MpayException("recipient user does not exist")
 
             o = db.StandingOrder(
                 name=name,
@@ -477,12 +486,12 @@ class Mpay:
             try:
                 user = session.query(db.User).filter_by(name=self.config.user).one()
             except sqa.exc.NoResultFound:
-                raise ValueError("current user does not exist in the database")
+                raise MpayException("current user does not exist in the database")
 
             try:
                 order = session.query(db.StandingOrder).filter_by(name=order_name, user_from=user).one()
             except sqa.exc.NoResultFound:
-                raise ValueError(f"standing order {order_name} with user_from={user.name} does not exist")
+                raise MpayException(f"standing order {order_name} with user_from={user.name} does not exist")
 
             if order.dt_next_utc is None:
                 # already disabled

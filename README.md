@@ -71,3 +71,15 @@ Set up pre-commit:
 ```
 pre-commit install
 ```
+
+
+### Database schema revisions
+Create a new revision:
+```sh
+rm schema_test.db
+alembic -c mpay/alembic.ini upgrade head
+alembic -c mpay/alembic.ini revision --autogenerate -m "create example table"
+```
+
+To actually apply the revision to a production database,
+run `mpay admin init`.

@@ -22,13 +22,18 @@ dependencies = [
     "pandas >= 2.2.3",
     "argcomplete >= 3.5.1",
     "voluptuous >= 0.15.2",
+    "alembic >= 1.13.3",
 ]
 
 
 [project.optional-dependencies]
 dev = [
-    "pytest"
+    "pytest",
 ]
+
+
+[tool.setuptools.package-data]
+mpay = ["alembic.ini"]
 
 
 [project.urls]

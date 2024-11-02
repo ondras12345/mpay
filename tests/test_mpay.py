@@ -1,5 +1,6 @@
 import pytest
 import mpay
+from mpay import MpayException, MpayValueError
 import datetime
 import dateutil.rrule
 from decimal import Decimal
@@ -7,12 +8,7 @@ from decimal import Decimal
 
 def test_init():
     config = mpay.Config(user="test1", db_url="sqlite:///")
-    mp = mpay.Mpay(config)
-
-    with pytest.raises(Exception):
-        mp.check()
-
-    mp.create_database()
+    mp = mpay.Mpay(config, setup_database=True)
 
     mp.check()
 
@@ -20,9 +16,8 @@ def test_init():
 @pytest.fixture
 def mpay_in_memory():
     config = mpay.Config(user="test1", db_url="sqlite:///")
-    mp = mpay.Mpay(config)
+    mp = mpay.Mpay(config, setup_database=True)
     mp.ask_confirmation = lambda question: False
-    mp.create_database()
     return mp
 
 
@@ -37,7 +32,7 @@ def mpay_w_users(mpay_in_memory):
 def test_init_twice(mpay_in_memory):
     mp = mpay_in_memory
     # the currencies upsert should not fail:
-    mp.create_database()
+    mpay.db.setup_database(mp.db_engine)
 
 
 def test_check(mpay_in_memory):
@@ -106,10 +101,10 @@ def test_user(mpay_in_memory):
         mp.create_user("test1")
 
     # invalid username
-    with pytest.raises(ValueError):
+    with pytest.raises(MpayValueError):
         mp.create_user("Uppercase")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(MpayValueError):
         mp.create_user("user with space")
 
     mp.create_user("u2")
@@ -122,12 +117,12 @@ def test_pay(mpay_w_users):
     mp = mpay_w_users
 
     # invalid recipient
-    with pytest.raises(ValueError):
+    with pytest.raises(MpayException):
         mp.pay(recipient_name="idontexist", converted_amount=Decimal("12.3"),
                due=datetime.datetime(2004, 1, 1))
 
     # paying to self
-    with pytest.raises(ValueError):
+    with pytest.raises(MpayException):
         mp.pay(recipient_name="test1", converted_amount=Decimal("12.3"),
                due=datetime.datetime(2004, 1, 1))
 
@@ -139,12 +134,12 @@ def test_pay(mpay_w_users):
     mp.create_tag("tag1")
 
     # missing tags
-    with pytest.raises(ValueError):
+    with pytest.raises(MpayException):
         mp.pay(recipient_name="test2", converted_amount=Decimal("12.3"),
                due=datetime.datetime(2004, 1, 1), tag_hierarchical_names=["tag1", "tag2"])
 
     # missing agent
-    with pytest.raises(ValueError):
+    with pytest.raises(MpayException):
         mp.pay(recipient_name="test2", converted_amount=Decimal("12.3"),
                due=datetime.datetime(2004, 1, 1), agent_name="agent1")
 
@@ -193,7 +188,7 @@ def test_order(mpay_w_users):
     start_date = today - datetime.timedelta(days=5)
 
     # amount must be greater than zero
-    with pytest.raises(ValueError):
+    with pytest.raises(MpayValueError):
         mp.create_order(name="order1", recipient_name="test2",
                         amount=Decimal("0"),
                         rrule=dateutil.rrule.rrule(freq=dateutil.rrule.DAILY))
@@ -289,10 +284,12 @@ def test_delete_tag(mpay_w_users, caplog):
 def test_hierarchical_tag(mpay_w_users):
     mp = mpay_w_users
 
-    with pytest.raises(ValueError):
+    # missing tags
+    with pytest.raises(MpayException):
         mp.pay(recipient_name="test2", converted_amount=Decimal("12.3"),
                due=datetime.datetime(2004, 1, 1), tag_hierarchical_names=["tag1", "a/b/tag2"])
 
+    # auto create
     mp.ask_confirmation = lambda question: True
 
     mp.pay(recipient_name="test2", converted_amount=Decimal("12.3"),

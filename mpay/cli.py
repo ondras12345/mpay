@@ -12,7 +12,7 @@ import pandas as pd
 from enum import Enum
 from decimal import Decimal
 from .config import Config
-from .mpay import Mpay
+from .mpay import Mpay, MpayException
 from .const import PROGRAM_NAME
 
 _LOGGER = logging.getLogger(__name__)
@@ -380,13 +380,15 @@ def main():
     parser_admin_check.set_defaults(func_mpay=admin_check)
 
     def admin_init(mp: Mpay, args):
-        mp.create_database()
+        # handled by mpay_setup_database
+        pass
 
     parser_admin_init = subparsers_admin.add_parser(
         "init",
         help="initialize the database"
     )
-    parser_admin_init.set_defaults(func_mpay=admin_init)
+    parser_admin_init.set_defaults(func_mpay=admin_init,
+                                   mpay_setup_database=True)
 
     def admin_cron(mp: Mpay, args):
         mp.execute_orders()
@@ -466,7 +468,14 @@ def main():
 
     _LOGGER.debug("config: %r", config)
 
-    mp = Mpay(config)
+    try:
+        setup_db = bool(args.mpay_setup_database)
+    except AttributeError:
+        setup_db = False
+    try:
+        mp = Mpay(config, setup_db)
+    except MpayException as e:
+        sys.exit(f"Error: {str(e)}")
     if args.assume_no:
         mp.ask_confirmation = lambda question: False
     elif args.assume_yes:
@@ -479,7 +488,7 @@ def main():
         ret = args.func_mpay(mp, args)
         sys.exit(ret if ret is not None else 0)
     # print "expected" Mpay exceptions w/o stack trace
-    except ValueError as e:
+    except MpayException as e:
         sys.exit(f"Error: {str(e)}")
     except Exception:
         _LOGGER.exception("unexpected exception")
