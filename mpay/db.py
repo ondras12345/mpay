@@ -111,7 +111,7 @@ class StandingOrder(Base):
     user_from: Mapped[User] = relationship(foreign_keys=[user_from_id])
     user_to_id: Mapped[int] = mapped_column(ForeignKey(User.__tablename__ + ".id"))
     user_to: Mapped[User] = relationship(foreign_keys=[user_to_id])
-    amount: Mapped[Decimal] = mapped_column(money_type, CheckConstraint("amount > 0", "amount_gt_zero"))
+    amount: Mapped[Decimal] = mapped_column(money_type)
     note: Mapped[Optional[str]] = mapped_column(String(255))
     # rrule dtstart is stored as a naive UTC datetime
     rrule_str: Mapped[str] = mapped_column(String(255))
@@ -122,6 +122,8 @@ class StandingOrder(Base):
     __table_args__ = (
         UniqueConstraint("name", "user_from_id"),
         CheckConstraint("user_from_id <> user_to_id", "user_from_to_different"),
+        # alembic does not seem to support check constraint in column definition
+        CheckConstraint("amount > 0", "amount_gt_zero"),
         Base._mysql_args
     )
 
