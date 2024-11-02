@@ -5,7 +5,8 @@ import logging
 import sqlalchemy as sqa
 from sqlalchemy import (
     create_engine, ForeignKey, PrimaryKeyConstraint, CheckConstraint,
-    UniqueConstraint, String, Table, Column, Integer, DDL, insert
+    UniqueConstraint, String, Table, Column, Integer, DDL, insert,
+    MetaData
 )
 
 from sqlalchemy.orm import (
@@ -25,6 +26,15 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
+    # constraint naming (needed by alembic):
+    metadata = MetaData(naming_convention={
+        "ix": "ix_%(column_0_label)s",
+        "uq": "uq_%(table_name)s_%(column_0_name)s",
+        "ck": "ck_%(table_name)s_%(constraint_name)s",
+        "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+        "pk": "pk_%(table_name)s"
+    })
+
     # extra mysql args: don't forget to include in __table_args__ in derived
     # classes
     _mysql_args = {
@@ -101,7 +111,7 @@ class StandingOrder(Base):
     user_from: Mapped[User] = relationship(foreign_keys=[user_from_id])
     user_to_id: Mapped[int] = mapped_column(ForeignKey(User.__tablename__ + ".id"))
     user_to: Mapped[User] = relationship(foreign_keys=[user_to_id])
-    amount: Mapped[Decimal] = mapped_column(money_type, CheckConstraint("amount > 0"))
+    amount: Mapped[Decimal] = mapped_column(money_type, CheckConstraint("amount > 0", "amount_gt_zero"))
     note: Mapped[Optional[str]] = mapped_column(String(255))
     # rrule dtstart is stored as a naive UTC datetime
     rrule_str: Mapped[str] = mapped_column(String(255))
@@ -111,7 +121,7 @@ class StandingOrder(Base):
     dt_created_utc: Mapped[datetime.datetime] = mapped_column(default=aware_utcnow)
     __table_args__ = (
         UniqueConstraint("name", "user_from_id"),
-        CheckConstraint("user_from_id <> user_to_id"),
+        CheckConstraint("user_from_id <> user_to_id", "user_from_to_different"),
         Base._mysql_args
     )
 
@@ -138,11 +148,14 @@ class Transaction(Base):
     tags: Mapped[list[Tag]] = relationship(secondary="transactions_tags", back_populates="transactions")
     __table_args__ = (
         # either both null or both not null
-        CheckConstraint("(original_currency_id IS NULL) = (original_amount IS NULL)"),
-        CheckConstraint("user_from_id <> user_to_id"),
+        CheckConstraint(
+            "(original_currency_id IS NULL) = (original_amount IS NULL)",
+            "both_original_amount_and_currency"
+        ),
+        CheckConstraint("user_from_id <> user_to_id", "user_from_to_different"),
         # Currently, we don't support adding transactions with future due
         # date.
-        CheckConstraint("dt_due_utc <= dt_created_utc"),
+        CheckConstraint("dt_due_utc <= dt_created_utc", "dt_due_not_in_future"),
         Base._mysql_args
     )
 
