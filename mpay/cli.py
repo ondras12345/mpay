@@ -73,8 +73,6 @@ def print_df(df: pd.DataFrame, output_format: OutputFormat | None):
             print(df.to_json(orient="records", indent=2))
 
         case None:
-            # TODO if dtype="string", \n gets printed as newline and messes up
-            # the table
             print(df.to_string(index=False))
 
         case _:
@@ -267,7 +265,10 @@ def main():
     subparsers_order = parser_order.add_subparsers(required=True)
 
     def order_list(mp: Mpay, args):
-        print_df(mp.get_orders_dataframe(), args.format)
+        df = mp.get_orders_dataframe()
+        if args.format is None:
+            df.rrule_str = df.rrule_str.str.replace("\n", " ")
+        print_df(df, args.format)
 
     parser_order_list = subparsers_order.add_parser(
         "list",
