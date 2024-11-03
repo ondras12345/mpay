@@ -126,7 +126,7 @@ class StandingOrder(Base):
         UniqueConstraint("name", "user_from_id"),
         CheckConstraint("user_from_id <> user_to_id", "user_from_to_different"),
         # alembic does not seem to support check constraint in column definition
-        CheckConstraint("amount > 0", "amount_gt_zero"),
+        CheckConstraint("amount >= 0", "amount_ge_zero"),
         Base._mysql_args
     )
 
