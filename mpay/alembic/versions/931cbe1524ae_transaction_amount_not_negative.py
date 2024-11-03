@@ -49,7 +49,7 @@ def upgrade() -> None:
 
     # don't loose triggers on sqlite:
     op.execute("""
-    CREATE TRIGGER update_balance_update AFTER UPDATE ON transactions
+    CREATE TRIGGER IF NOT EXISTS update_balance_update AFTER UPDATE ON transactions
     FOR EACH ROW
     BEGIN
         UPDATE users SET balance = balance + OLD.converted_amount WHERE id = OLD.user_from_id;
@@ -60,7 +60,7 @@ def upgrade() -> None:
     """)
 
     op.execute("""
-    CREATE TRIGGER update_balance_insert AFTER INSERT ON transactions
+    CREATE TRIGGER IF NOT EXISTS update_balance_insert AFTER INSERT ON transactions
     FOR EACH ROW
     BEGIN
         UPDATE users SET balance = balance - NEW.converted_amount WHERE id = NEW.user_from_id;
@@ -69,7 +69,7 @@ def upgrade() -> None:
     """)
 
     op.execute("""
-    CREATE TRIGGER update_balance_delete AFTER DELETE ON transactions
+    CREATE TRIGGER IF NOT EXISTS update_balance_delete AFTER DELETE ON transactions
     FOR EACH ROW
     BEGIN
         UPDATE users SET balance = balance + OLD.converted_amount WHERE id = OLD.user_from_id;
@@ -94,7 +94,7 @@ def downgrade() -> None:
 
     # don't loose triggers on sqlite:
     op.execute("""
-    CREATE TRIGGER update_balance_update AFTER UPDATE ON transactions
+    CREATE TRIGGER IF NOT EXISTS update_balance_update AFTER UPDATE ON transactions
     FOR EACH ROW
     BEGIN
         UPDATE users SET balance = balance + OLD.converted_amount WHERE id = OLD.user_from_id;
@@ -105,7 +105,7 @@ def downgrade() -> None:
     """)
 
     op.execute("""
-    CREATE TRIGGER update_balance_insert AFTER INSERT ON transactions
+    CREATE TRIGGER IF NOT EXISTS update_balance_insert AFTER INSERT ON transactions
     FOR EACH ROW
     BEGIN
         UPDATE users SET balance = balance - NEW.converted_amount WHERE id = NEW.user_from_id;
@@ -114,7 +114,7 @@ def downgrade() -> None:
     """)
 
     op.execute("""
-    CREATE TRIGGER update_balance_delete AFTER DELETE ON transactions
+    CREATE TRIGGER IF NOT EXISTS update_balance_delete AFTER DELETE ON transactions
     FOR EACH ROW
     BEGIN
         UPDATE users SET balance = balance + OLD.converted_amount WHERE id = OLD.user_from_id;
