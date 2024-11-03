@@ -234,14 +234,16 @@ class Mpay:
         self,
         recipient_name: str,
         converted_amount: Decimal,
-        due: datetime.datetime,
+        due: Optional[datetime.datetime] = None,
         original_currency: Optional[str] = None,
         original_amount: Optional[Decimal] = None,
         agent_name: Optional[str] = None,
         note: Optional[str] = None,
-        tag_hierarchical_names: list[str] = [],
+        tag_hierarchical_names: list[str] | tuple[str, ...] = [],
     ):
         recipient_name = self.sanitize_user_name(recipient_name)
+        if due is None:
+            due = datetime.datetime.now()
 
         with db.Session(self.db_engine) as session:
             try:

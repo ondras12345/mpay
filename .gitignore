@@ -1,4 +1,6 @@
 schema_test.db
+mpay-demo.db
+mpay-demo.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
