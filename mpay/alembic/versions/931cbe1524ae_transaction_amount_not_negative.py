@@ -19,6 +19,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    is_sqlite = "sqlite" in op.get_bind().dialect.name.lower()
+    if is_sqlite:
+        op.execute("PRAGMA foreign_keys=OFF")
+
     with op.batch_alter_table('transactions', schema=None) as batch_op:
         batch_op.add_column(sa.Column('user_created_id', sa.Integer(), nullable=True))
 
@@ -73,8 +77,15 @@ def upgrade() -> None:
     END;
     """)
 
+    if is_sqlite:
+        op.execute("PRAGMA foreign_keys=ON")
+
 
 def downgrade() -> None:
+    is_sqlite = "sqlite" in op.get_bind().dialect.name.lower()
+    if is_sqlite:
+        op.execute("PRAGMA foreign_keys=OFF")
+
     with op.batch_alter_table('transactions', schema=None) as batch_op:
         batch_op.drop_constraint("converted_amount_ge_zero", "check")
         batch_op.drop_constraint("original_amount_ge_zero", "check")
@@ -110,3 +121,6 @@ def downgrade() -> None:
         UPDATE users SET balance = balance - OLD.converted_amount WHERE id = OLD.user_to_id;
     END;
     """)
+
+    if is_sqlite:
+        op.execute("PRAGMA foreign_keys=ON")

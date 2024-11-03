@@ -19,12 +19,26 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    is_sqlite = "sqlite" in op.get_bind().dialect.name.lower()
+    if is_sqlite:
+        op.execute("PRAGMA foreign_keys=OFF")
+
     with op.batch_alter_table("standing_orders", schema=None) as batch_op:
         batch_op.drop_constraint("amount_gt_zero", "check")
         batch_op.create_check_constraint("amount_ge_zero", "amount >= 0")
 
+    if is_sqlite:
+        op.execute("PRAGMA foreign_keys=ON")
+
 
 def downgrade() -> None:
+    is_sqlite = "sqlite" in op.get_bind().dialect.name.lower()
+    if is_sqlite:
+        op.execute("PRAGMA foreign_keys=OFF")
+
     with op.batch_alter_table("standing_orders", schema=None) as batch_op:
         batch_op.drop_constraint("amount_ge_zero", "check")
         batch_op.create_check_constraint("amount_gt_zero", "amount > 0")
+
+    if is_sqlite:
+        op.execute("PRAGMA foreign_keys=ON")
