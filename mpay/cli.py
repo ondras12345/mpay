@@ -195,6 +195,7 @@ def main():
     parser_pay.add_argument(
         "--tags",
         type=lambda t: [s.strip() for s in t.split(",")],
+        default=[],
         help="comma separated list of tags (e.g. tag1,a/b/tag2)"
     )
 
