@@ -32,7 +32,7 @@ def upgrade() -> None:
         SET user_created_id = user_from_id
         WHERE user_created_id IS NULL
         """)
-        batch_op.alter_column("user_created_id", nullable=False)
+        batch_op.alter_column("user_created_id", nullable=False, type_=sa.Integer())
         batch_op.create_foreign_key(batch_op.f('fk_transactions_user_created_id_users'), 'users', ['user_created_id'], ['id'])
 
         batch_op.execute("""
