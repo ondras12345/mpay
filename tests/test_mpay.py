@@ -74,7 +74,7 @@ def test_check(mpay_in_memory):
 
         assert u1.balance == 0
 
-        t = mpay.db.Transaction(user_from=u2, user_to=u1,
+        t = mpay.db.Transaction(user_from=u2, user_to=u1, user_created=u2,
                                 converted_amount=Decimal("12.3"),
                                 dt_due_utc=mpay.db.aware_utcnow())
         session.add(t)

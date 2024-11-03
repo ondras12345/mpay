@@ -293,11 +293,17 @@ class Mpay:
                     tag = self.create_hierarchical_tag(tag_hierarchical_name, session)
                 tags.append(tag)
 
+            if converted_amount >= 0:
+                s, r = sender, recipient
+            else:
+                s, r = recipient, sender
+
             t = db.Transaction(
-                user_from=sender,
-                user_to=recipient,
-                converted_amount=converted_amount,
-                original_amount=original_amount,
+                user_from=s,
+                user_to=r,
+                user_created=sender,
+                converted_amount=abs(converted_amount),
+                original_amount=abs(original_amount) if original_amount is not None else None,
                 original_currency=currency,
                 agent=agent,
                 note=note,
@@ -362,10 +368,8 @@ class Mpay:
                 amount = Decimal(row.amount)
                 if amount > 0:
                     user_from, user_to = user2, user1
-                elif amount < 0:
+                elif amount <= 0:
                     user_from, user_to = user1, user2
-                else:
-                    raise MpayValueError("amount must be non-zero")
 
                 note: Optional[str] = row.note
                 # convert empty string to None
@@ -380,6 +384,7 @@ class Mpay:
                 t = db.Transaction(
                     user_from=user_from,
                     user_to=user_to,
+                    user_created=user_from,
                     converted_amount=abs(amount),
                     agent=agent,
                     note=note,
@@ -410,6 +415,7 @@ class Mpay:
             t = db.Transaction(
                 user_from=order.user_from,
                 user_to=order.user_to,
+                user_created=order.user_from,
                 converted_amount=order.amount,
                 dt_due_utc=dt_next_utc,
                 standing_order=order
