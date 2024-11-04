@@ -132,7 +132,7 @@ def main():
     )
 
     parser.add_argument(
-        "--format", type=OutputFormat, choices=list(OutputFormat),
+        "-f", "--format", type=OutputFormat, choices=list(OutputFormat),
         help="set output format for commands that output a pandas dataframe"
     )
 
