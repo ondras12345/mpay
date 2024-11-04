@@ -113,7 +113,7 @@ class Mpay:
                 .join(user_to, db.Transaction.user_to)
                 .outerjoin(db.Transaction.original_currency)
                 .outerjoin(db.Transaction.agent)
-                .order_by(db.Transaction.dt_due_utc),
+                .order_by(db.Transaction.dt_due_utc, db.Transaction.id),
                 session
             )
 
