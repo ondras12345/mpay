@@ -21,6 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 class OutputFormat(Enum):
     JSON = "json"
     CSV = "csv"
+    GUI = "gui"
 
     def __str__(self):
         return self.value
@@ -71,6 +72,10 @@ def print_df(df: pd.DataFrame, output_format: OutputFormat | None):
 
         case OutputFormat.JSON:
             print(df.to_json(orient="records", indent=2))
+
+        case OutputFormat.GUI:
+            from .gui import show_df
+            show_df(df)
 
         case None:
             print(df.to_string(index=False))
