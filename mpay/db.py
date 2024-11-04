@@ -232,6 +232,44 @@ transactions_tags = Table(
 )
 
 
+_user_from = sqa.orm.aliased(User)
+_user_to = sqa.orm.aliased(User)
+_user_created = sqa.orm.aliased(User)
+history_select = (
+    sqa.select(
+        Transaction.id,
+        _user_from.name.label("from"),
+        _user_to.name.label("to"),
+        Transaction.converted_amount.label("amount"),
+        Currency.iso_4217.label("orig. currency"),
+        Transaction.original_amount.label("orig. amount"),
+        Agent.name.label("agent"),
+        # Standing order name is not unique, but (user_from, name)
+        # is, and the order's user_from matches the transaction's
+        # user_from.
+        StandingOrder.name.label("order"),
+        Transaction.note,
+        # Tag name is not unique, but it would be hard to get the
+        # hierarchical name instead.
+        func.group_concat(Tag.name).label("tags"),
+        Transaction.dt_due_utc.label("due_utc"),
+        Transaction.dt_created_utc.label("created_utc"),
+        _user_created.name.label("created by")
+    )
+    .select_from(Transaction)
+    .outerjoin(transactions_tags)
+    .outerjoin(Tag)
+    .join(_user_from, Transaction.user_from)
+    .join(_user_to, Transaction.user_to)
+    .join(_user_created, Transaction.user_created)
+    .outerjoin(Transaction.original_currency)
+    .outerjoin(Transaction.agent)
+    .outerjoin(Transaction.standing_order)
+    .group_by(Transaction.id)
+    .order_by(Transaction.dt_due_utc, Transaction.id)
+)
+
+
 def alembic_config(db_engine) -> alembic.config.Config:
     alembic_cfg_file = pathlib.Path(__file__).parents[0] / "alembic.ini"
     _LOGGER.debug("alembic config file: %s", alembic_cfg_file)

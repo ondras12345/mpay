@@ -95,43 +95,12 @@ class Mpay:
             except sqa.exc.NoResultFound:
                 raise MpayException("current user does not exist in the database")
 
-            user_from = sqa.orm.aliased(db.User)
-            user_to = sqa.orm.aliased(db.User)
-            user_created = sqa.orm.aliased(db.User)
             return self._sql2df(
-                sqa.select(
-                    db.Transaction.id,
-                    user_from.name.label("from"),
-                    user_to.name.label("to"),
-                    db.Transaction.converted_amount.label("amount"),
-                    db.Currency.iso_4217.label("orig. currency"),
-                    db.Transaction.original_amount.label("orig. amount"),
-                    db.Agent.name.label("agent"),
-                    # Standing order name is not unique, but (user_from, name)
-                    # is, and the order's user_from matches the transaction's
-                    # user_from.
-                    db.StandingOrder.name.label("order"),
-                    db.Transaction.note,
-                    # Tag name is not unique, but it would be hard to get the
-                    # hierarchical name instead.
-                    db.func.group_concat(db.Tag.name).label("tags"),
-                    db.Transaction.dt_due_utc.label("due_utc"),
-                    db.Transaction.dt_created_utc.label("created_utc"),
-                    user_created.name.label("created by")
-                )
-                .select_from(db.Transaction)
-                .outerjoin(db.transactions_tags)
-                .outerjoin(db.Tag)
-                .join(user_from, db.Transaction.user_from)
-                .join(user_to, db.Transaction.user_to)
-                .join(user_created, db.Transaction.user_created)
-                .outerjoin(db.Transaction.original_currency)
-                .outerjoin(db.Transaction.agent)
-                .outerjoin(db.Transaction.standing_order)
-                .where((db.Transaction.user_from_id == me.id) |
-                       (db.Transaction.user_to_id == me.id))
-                .group_by(db.Transaction.id)
-                .order_by(db.Transaction.dt_due_utc, db.Transaction.id),
+                db.history_select
+                .where(
+                    (db.Transaction.user_from_id == me.id) |
+                    (db.Transaction.user_to_id == me.id)
+                ),
                 session
             )
 
