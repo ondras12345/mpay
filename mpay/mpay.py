@@ -90,6 +90,11 @@ class Mpay:
 
     def get_transactions_dataframe(self) -> pd.DataFrame:
         with db.Session(self.db_engine) as session:
+            try:
+                me = session.query(db.User).filter_by(name=self.config.user).one()
+            except sqa.exc.NoResultFound:
+                raise MpayException("current user does not exist in the database")
+
             user_from = sqa.orm.aliased(db.User)
             user_to = sqa.orm.aliased(db.User)
             user_created = sqa.orm.aliased(db.User)
@@ -123,6 +128,8 @@ class Mpay:
                 .outerjoin(db.Transaction.original_currency)
                 .outerjoin(db.Transaction.agent)
                 .outerjoin(db.Transaction.standing_order)
+                .where((db.Transaction.user_from_id == me.id) |
+                       (db.Transaction.user_to_id == me.id))
                 .group_by(db.Transaction.id)
                 .order_by(db.Transaction.dt_due_utc, db.Transaction.id),
                 session
