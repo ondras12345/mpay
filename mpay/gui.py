@@ -13,15 +13,18 @@ class DfGUI(tk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
-        columns: list[str] = list(self.df)
-        self.trv = ttk.Treeview(self.parent, show="headings", columns=columns)
+        self.columns: list[str] = list(self.df)
+        self.trv = ttk.Treeview(self.parent, show="headings", columns=self.columns)
 
         self.vsb = ttk.Scrollbar(self.parent, orient="vertical", command=self.trv.yview)
         self.trv.configure(yscrollcommand=self.vsb.set)
         self.vsb.pack(side=tk.RIGHT, fill=tk.Y)
         self.trv.pack(fill=tk.BOTH, side=tk.LEFT, expand=True)
 
-        for col in columns:
+        self.fill_trv()
+
+    def fill_trv(self):
+        for col in self.columns:
             self.trv.column(col, anchor=tk.CENTER)
             self.trv.heading(col, text=col)
 
@@ -29,7 +32,25 @@ class DfGUI(tk.Frame):
             self.trv.insert("", "end", iid=row.id, values=row.tolist())
 
 
-def show_df(df):
+class HistoryDfGUI(DfGUI):
+    def __init__(self, parent, df, user_me):
+        self.user_me = user_me
+        super().__init__(parent, df)
+
+    def fill_trv(self):
+        for col in self.columns:
+            self.trv.column(col, anchor=tk.CENTER)
+            self.trv.heading(col, text=col)
+
+        for _, row in self.df.iterrows():
+            self.trv.insert("", "end", iid=row.id, values=row.tolist(),
+                            tags="incoming" if row["to"] == self.user_me else "outgoing")
+
+        self.trv.tag_configure("outgoing", background="#ffb3b3")
+        self.trv.tag_configure("incoming", background="#b3ffb3")
+
+
+def show_df(df, view=DfGUI, *args):
     root = tk.Tk()
-    app = DfGUI(root, df)
+    app = view(root, df, *args)
     app.mainloop()

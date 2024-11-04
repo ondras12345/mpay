@@ -9,6 +9,7 @@ import os
 import sys
 import dateutil.rrule
 import pandas as pd
+import typing
 from enum import Enum
 from decimal import Decimal
 from .config import Config
@@ -64,7 +65,7 @@ def ask_confirmation(question: str) -> bool:
             print(f"invalid choice: {choice}")
 
 
-def print_df(df: pd.DataFrame, output_format: OutputFormat | None):
+def print_df(mp: Mpay, df: pd.DataFrame, output_format: OutputFormat | None, name: str | None = None):
     """Print a pandas dataframe in specified format."""
     match output_format:
         case OutputFormat.CSV:
@@ -74,8 +75,13 @@ def print_df(df: pd.DataFrame, output_format: OutputFormat | None):
             print(df.to_json(orient="records", indent=2))
 
         case OutputFormat.GUI:
-            from .gui import show_df
-            show_df(df)
+            from .gui import show_df, DfGUI, HistoryDfGUI
+            view: typing.Any = DfGUI
+            args = []
+            if name == "history":
+                view = HistoryDfGUI
+                args = [mp.config.user]
+            show_df(df, view, *args)
 
         case None:
             print(df.to_string(index=False))
@@ -203,7 +209,7 @@ def main():
     )
 
     def history(mp: Mpay, args):
-        print_df(mp.get_transactions_dataframe(), args.format)
+        print_df(mp, mp.get_transactions_dataframe(), args.format, "history")
 
     parser_history = subparsers.add_parser(
         "history",
@@ -219,7 +225,7 @@ def main():
     subparsers_tag = parser_tag.add_subparsers(required=True)
 
     def tag_list(mp: Mpay, args):
-        print_df(mp.get_tags_dataframe(), args.format)
+        print_df(mp, mp.get_tags_dataframe(), args.format)
 
     parser_tag_list = subparsers_tag.add_parser(
         "list",
@@ -273,7 +279,7 @@ def main():
         df = mp.get_orders_dataframe()
         if args.format is None:
             df.rrule_str = df.rrule_str.str.replace("\n", " ")
-        print_df(df, args.format)
+        print_df(mp, df, args.format)
 
     parser_order_list = subparsers_order.add_parser(
         "list",
@@ -363,7 +369,7 @@ def main():
     )
 
     def user_list(mp: Mpay, args):
-        print_df(mp.get_users_dataframe(), args.format)
+        print_df(mp, mp.get_users_dataframe(), args.format)
 
     parser_user_list = subparsers_user.add_parser(
         "list",
