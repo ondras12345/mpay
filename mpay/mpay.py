@@ -50,6 +50,9 @@ class Mpay:
         elif not db.check_revision(self.db_engine):
             raise MpayException("Database revision does not match.")
 
+    def __del__(self):
+        self.db_engine.dispose()
+
     @staticmethod
     def ask_confirmation(question: str) -> bool:
         """Ask the user for confirmation.
