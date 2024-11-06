@@ -2,6 +2,7 @@ import pytest
 import mpay
 import mpay.cli
 from mpay import MpayException, MpayValueError
+import os
 import datetime
 import dateutil.rrule
 from decimal import Decimal
@@ -395,3 +396,20 @@ def test_mpay_cli(mpay_in_memory):
         assert johndoe.balance == Decimal("-145.93")
         assert bob.balance == Decimal("128.4")
         assert alice.balance == Decimal("17.53")
+
+
+def test_config():
+    c = mpay.Config.from_dict({
+        "user": "u1",
+        "db_url": "sqlite:///",
+    })
+    assert c.user == "u1"
+    assert c.db_url == "sqlite:///"
+
+    c = mpay.Config.from_dict({
+        "db_url": {
+            "command": "printf test1",
+        },
+    })
+    assert c.user == os.getenv("USER")
+    assert c.db_url == "test1"
