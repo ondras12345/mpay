@@ -90,26 +90,14 @@ def print_df(mp: Mpay, df: pd.DataFrame, output_format: OutputFormat | None, nam
             raise NotImplementedError("unknown dataframe output format: %s", output_format)
 
 
-def main():
-    config_dir = pathlib.Path(
-            os.environ.get("APPDATA") or
-            os.environ.get("XDG_CONFIG_HOME") or
-            os.path.join(os.environ["HOME"], ".config"),
-        ) / PROGRAM_NAME
-
-    config_file = config_dir / "config.yaml"
-    # ensure config file exists
-    config_dir.mkdir(parents=True, exist_ok=True)
-    if not config_file.exists():
-        config_file.touch()
-
+def create_parser(config_file_default: str = ""):
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "-c", "--config-file",
         help="path to configuration file (default %(default)s)",
         type=argparse.FileType("r"),
-        default=str(config_file)
+        default=config_file_default
     )
 
     parser.add_argument(
@@ -171,12 +159,12 @@ def main():
     parser_pay.set_defaults(func_mpay=pay)
 
     parser_pay.add_argument(
-        "--recipient", "--to", required=True,
+        "--recipient", "--to", "-t", required=True,
         help="user to send the money to"
     )
 
     parser_pay.add_argument(
-        "--amount", type=Decimal, required=True,
+        "--amount", "-a", type=Decimal, required=True,
         help="amount in base currency"
     )
 
@@ -198,7 +186,7 @@ def main():
     )
 
     parser_pay.add_argument(
-        "--note", type=str
+        "--note", "-n", type=str
     )
 
     parser_pay.add_argument(
@@ -308,7 +296,7 @@ def main():
     )
 
     parser_order_create.add_argument(
-        "--recipient", "--to", required=True,
+        "--recipient", "--to", "-t", required=True,
         help="user to send the money to"
     )
 
@@ -325,12 +313,12 @@ def main():
     )
 
     parser_order_create.add_argument(
-        "--amount", type=Decimal, required=True,
+        "--amount", "-a", type=Decimal, required=True,
         help="amount in base currency"
     )
 
     parser_order_create.add_argument(
-        "--note", type=str
+        "--note", "-n", type=str
     )
 
     def order_disable(mp: Mpay, args) -> int:
@@ -450,6 +438,24 @@ def main():
         help="name of user whose balance should be decreased by "
              "a transaction with positive amount"
     )
+
+    return parser
+
+
+def main():
+    config_dir = pathlib.Path(
+            os.environ.get("APPDATA") or
+            os.environ.get("XDG_CONFIG_HOME") or
+            os.path.join(os.environ["HOME"], ".config"),
+        ) / PROGRAM_NAME
+
+    config_file = config_dir / "config.yaml"
+    # ensure config file exists
+    config_dir.mkdir(parents=True, exist_ok=True)
+    if not config_file.exists():
+        config_file.touch()
+
+    parser = create_parser(config_file_default=str(config_file))
 
     argcomplete.autocomplete(parser)
 

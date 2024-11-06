@@ -1,5 +1,6 @@
 import pytest
 import mpay
+import mpay.cli
 from mpay import MpayException, MpayValueError
 import datetime
 import dateutil.rrule
@@ -312,3 +313,85 @@ def test_hierarchical_tag(mpay_w_users):
 
         tag2 = session.query(mpay.db.Tag).filter_by(name="tag2", parent=None).one()
         assert tag2.hierarchical_name == "tag2"
+
+
+def test_mpay_cli(mpay_in_memory):
+    mp = mpay_in_memory
+    mp.config.user = "johndoe"
+
+    # answer "yes" to all questions
+    mp.ask_confirmation = lambda question: True
+
+    # config_file_default needs to exist
+    parser = mpay.cli.create_parser(config_file_default=__file__)
+
+    def execute_cli(arg_list: list[str]):
+        args = parser.parse_args(arg_list)
+        return args.func_mpay(mp, args), args
+
+    execute_cli(["user", "create", "johndoe"])
+    execute_cli(["user", "create", "bob"])
+    execute_cli(["user", "create", "alice"])
+
+    execute_cli(["tag", "create", "examples"])
+    execute_cli(["tag", "create", "foreign_currency", "--parent", "examples"])
+    execute_cli(["tag", "create", "fc1", "--parent", "examples/foreign_currency"])
+
+    execute_cli([
+        "pay", "--recipient", "bob", "--amount", "123.4",
+        "--note", "first payment from johndoe to bob",
+    ])
+
+    # w/ tags and original
+    execute_cli([
+        "pay", "--to", "alice", "--amount", "12.3",
+        "--original", "EUR", "0.492",
+        "--tags", "examples/foreign_currency,examples/tags",
+        "--note", "payment from johndoe to alice with tags and original_currency",
+    ])
+
+    # w/ agent, short options
+    execute_cli([
+        "pay", "-t", "alice", "-a", "1.23",
+        "--agent", "agent1",
+        "-n", "payment from johndoe to alice created by agent1",
+    ])
+
+    # zero value, no note
+    execute_cli([
+        "pay", "-t", "alice", "-a", "0",
+    ])
+
+    start = (datetime.datetime.now()
+             .replace(hour=0, minute=0, second=0, microsecond=0)
+             - datetime.timedelta(days=4))
+
+    execute_cli([
+        "order", "create", "--to", "bob", "--amount", "1.0",
+        "--rrule", f"DTSTART:{start.isoformat()} RRULE:FREQ=DAILY",
+        "--note", "recurring daily payment from johndoe to bob with no expiry",
+        "order1",
+    ])
+
+    execute_cli([
+        "order", "create", "--recipient", "alice", "--amount", "2.0",
+        "--rrule", f"DTSTART:{start.isoformat()} RRULE:FREQ=DAILY;COUNT=2",
+        "--note", "recurring daily payment from johndoe to bob with no expiry",
+        "order2",
+    ])
+
+    # execute standing orders
+    execute_cli(["admin", "cron"])
+
+    # check database
+    execute_cli(["admin", "check"])
+
+    with mpay.db.Session(mp.db_engine) as session:
+        users = session.query(mpay.db.User).all()
+        assert len(users) == 3
+        johndoe = session.query(mpay.db.User).filter_by(name="johndoe").one()
+        alice = session.query(mpay.db.User).filter_by(name="alice").one()
+        bob = session.query(mpay.db.User).filter_by(name="bob").one()
+        assert johndoe.balance == Decimal("-145.93")
+        assert bob.balance == Decimal("128.4")
+        assert alice.balance == Decimal("17.53")
