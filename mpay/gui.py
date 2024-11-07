@@ -3,7 +3,7 @@ import tkinter.ttk as ttk
 
 
 class DfGUI(tk.Frame):
-    """Generic pandas dataframe display."""
+    """Generic pandas dataframe view."""
 
     def __init__(self, parent, df):
         super().__init__(parent)
