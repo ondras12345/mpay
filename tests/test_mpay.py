@@ -389,7 +389,7 @@ def test_mpay_cli(mpay_in_memory):
 
     # zero value, no note
     execute_cli([
-        "pay", "-t", "alice", "-a", "0",
+        "pay", "-t", "alice", "-a", "0", "-n", ""
     ])
 
     start = (datetime.datetime.now()

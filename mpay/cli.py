@@ -148,7 +148,7 @@ def create_parser(config_file_default: str = ""):
             original_amount=original_amount,
             agent_name=args.agent,
             due=args.due,
-            note=args.note,
+            note=args.note if args.note else None,  # map "" to None
             tag_hierarchical_names=args.tags
         )
 
@@ -187,8 +187,11 @@ def create_parser(config_file_default: str = ""):
         help="due date of this payment in ISO8601 format. Default: now"
     )
 
+    # Note is optional in Mpay.pay, but most of the time if the user does not
+    # specify it, it is because they forgot. I will make it required. If you
+    # really want no note, specify --note ""
     parser_pay.add_argument(
-        "--note", "-n", type=str
+        "--note", "-n", type=str, required=True
     )
 
     parser_pay.add_argument(
