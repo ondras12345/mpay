@@ -267,7 +267,10 @@ class Mpay:
         transaction_id: int
     ) -> set["str"]:
         with db.Session(self.db_engine) as session:
-            transaction = session.query(db.Transaction).filter_by(id=transaction_id).one()
+            try:
+                transaction = session.query(db.Transaction).filter_by(id=transaction_id).one()
+            except sqa.exc.NoResultFound:
+                raise MpayException(f"There is no transaction with id={transaction_id}")
             return {t.hierarchical_name for t in transaction.tags}
 
     def create_agent(
