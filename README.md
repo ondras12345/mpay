@@ -70,7 +70,8 @@ It is a good idea to at least run the tests located in `tests/` directory
 against your database. You should also `grep` the source codes for `dialect`
 and review what RDBMS-specific tweaks there are.
 
-Create the database tables (or upgrade to a newer database schema):
+Create the database tables (or upgrade to a newer database schema - always
+make a backup of the database before doing that):
 ```
 mpay admin init
 ```
