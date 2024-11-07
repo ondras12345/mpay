@@ -12,6 +12,7 @@ import sqlalchemy as sqa
 import pandas as pd
 from decimal import Decimal
 from typing import Optional
+from collections.abc import Iterable
 from .config import Config
 from . import db
 
@@ -192,10 +193,10 @@ class Mpay:
         return current
 
     def create_tag(
-            self,
-            tag_name: str,
-            description: Optional[str] = None,
-            parent_hierarchical_name: Optional[str] = None
+        self,
+        tag_name: str,
+        description: Optional[str] = None,
+        parent_hierarchical_name: Optional[str] = None
     ) -> None:
         tag_name = self.sanitize_tag_name(tag_name)
         with db.Session(self.db_engine) as session:
@@ -209,10 +210,70 @@ class Mpay:
             session.add(t)
             session.commit()
 
+    def add_tags(
+        self,
+        transaction_ids: Iterable[int] = [],
+        tag_hierarchical_names: Iterable[str] = [],
+    ) -> None:
+        """Add tags to existing transactions."""
+        with db.Session(self.db_engine) as session:
+            tags = set()
+            for tag_hierarchical_name in tag_hierarchical_names:
+                try:
+                    tag = self.find_tag(tag_hierarchical_name, session)
+                except sqa.exc.NoResultFound:
+                    if not self.ask_confirmation(f"Tag {tag_hierarchical_name} does not exist. Create?"):
+                        raise MpayException(f"tag {tag_hierarchical_name} does not exist")
+                    tag = self.create_hierarchical_tag(tag_hierarchical_name, session)
+                tags.add(tag)
+
+            for transaction_id in transaction_ids:
+                try:
+                    transaction = session.query(db.Transaction).filter_by(id=transaction_id).one()
+                except sqa.exc.NoResultFound:
+                    raise MpayException(f"transaction with id {transaction_id} does not exist")
+                transaction.tags.extend(tags)
+                session.add(transaction)
+
+            session.commit()
+
+    def remove_tags(
+        self,
+        transaction_ids: Iterable[int] = [],
+        tag_hierarchical_names: Iterable[str] = [],
+    ) -> None:
+        """Remove existing tags from existing transactions."""
+        with db.Session(self.db_engine) as session:
+            tags = set()
+            for tag_hierarchical_name in tag_hierarchical_names:
+                try:
+                    tag = self.find_tag(tag_hierarchical_name, session)
+                except sqa.exc.NoResultFound:
+                    raise MpayException(f"tag {tag_hierarchical_name} does not exist")
+                tags.add(tag)
+
+            for transaction_id in transaction_ids:
+                try:
+                    transaction = session.query(db.Transaction).filter_by(id=transaction_id).one()
+                except sqa.exc.NoResultFound:
+                    raise MpayException(f"transaction with id {transaction_id} does not exist")
+                transaction.tags = list(set(transaction.tags) - tags)
+                session.add(transaction)
+
+            session.commit()
+
+    def get_tags_for_transaction(
+        self,
+        transaction_id: int
+    ) -> set["str"]:
+        with db.Session(self.db_engine) as session:
+            transaction = session.query(db.Transaction).filter_by(id=transaction_id).one()
+            return {t.hierarchical_name for t in transaction.tags}
+
     def create_agent(
-            self,
-            agent_name: str,
-            description: Optional[str] = None
+        self,
+        agent_name: str,
+        description: Optional[str] = None
     ) -> None:
         agent_name = self.sanitize_agent_name(agent_name)
         with db.Session(self.db_engine) as session:
@@ -229,8 +290,8 @@ class Mpay:
         original_amount: Optional[Decimal] = None,
         agent_name: Optional[str] = None,
         note: Optional[str] = None,
-        tag_hierarchical_names: list[str] | tuple[str, ...] = [],
-    ):
+        tag_hierarchical_names: Iterable[str] = [],
+    ) -> int:
         recipient_name = self.sanitize_user_name(recipient_name)
         if due is None:
             due = datetime.datetime.now()
@@ -302,6 +363,7 @@ class Mpay:
             )
             session.add(t)
             session.commit()
+            return t.id
 
     def import_df(
         self,

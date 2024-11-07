@@ -316,6 +316,35 @@ def test_hierarchical_tag(mpay_w_users):
         assert tag2.hierarchical_name == "tag2"
 
 
+def test_add_tag(mpay_w_users):
+    mp = mpay_w_users
+    # auto create tags
+    mp.ask_confirmation = lambda question: True
+
+    t1_id = mp.pay(recipient_name="test2", converted_amount=Decimal("12.3"),
+                   due=datetime.datetime(2004, 1, 1),
+                   tag_hierarchical_names=["tag1", "a/b/tag2"])
+
+    t2_id = mp.pay(recipient_name="test2", converted_amount=Decimal("1.3"),
+                   due=datetime.datetime(2004, 1, 2),
+                   tag_hierarchical_names=["a/b/tag2"])
+
+    # the tag should be created automatically
+    mp.add_tags((t1_id, t2_id), ("a/b/tag3",))
+
+    mp.remove_tags((t1_id, t2_id), ("a/b/tag2",))
+
+    with mpay.db.Session(mp.db_engine) as session:
+        t1 = session.query(mpay.db.Transaction).filter_by(id=t1_id).one()
+        t2 = session.query(mpay.db.Transaction).filter_by(id=t2_id).one()
+
+        t1_tags = {t.hierarchical_name for t in t1.tags}
+        t2_tags = {t.hierarchical_name for t in t2.tags}
+
+        assert t1_tags == {"a/b/tag3", "tag1"}
+        assert t2_tags == {"a/b/tag3"}
+
+
 def test_mpay_cli(mpay_in_memory):
     mp = mpay_in_memory
     mp.config.user = "johndoe"
@@ -396,6 +425,36 @@ def test_mpay_cli(mpay_in_memory):
         assert johndoe.balance == Decimal("-145.93")
         assert bob.balance == Decimal("128.4")
         assert alice.balance == Decimal("17.53")
+
+        t1 = session.query(mpay.db.Transaction).filter_by(note="first payment from johndoe to bob").one()
+        t1_id = t1.id
+
+        t2 = session.query(mpay.db.Transaction).filter_by(
+            note="payment from johndoe to alice with tags and original_currency"
+        ).one()
+        t2_id = t2.id
+
+    with pytest.raises(SystemExit):
+        execute_cli(["tag", "add", "--transactions", f"{t1_id},{t2_id}"])
+
+    with pytest.raises(SystemExit):
+        execute_cli(["tag", "add", "--tags", "a_tag"])
+
+    execute_cli(["tag", "add", "--transactions", f"{t1_id},{t2_id}",
+                 "--tags", "examples/tag_add/1,examples/tag_add/2"])
+
+    execute_cli(["tag", "remove", "--transactions", f"{t2_id}",
+                 "--tags", "examples/tags"])
+
+    with mpay.db.Session(mp.db_engine) as session:
+        t1 = session.query(mpay.db.Transaction).filter_by(id=t1_id).one()
+        t2 = session.query(mpay.db.Transaction).filter_by(id=t2_id).one()
+
+        t1_tags = {t.hierarchical_name for t in t1.tags}
+        t2_tags = {t.hierarchical_name for t in t2.tags}
+
+        assert t1_tags == {"examples/tag_add/1", "examples/tag_add/2"}
+        assert t2_tags == {"examples/tag_add/1", "examples/tag_add/2", "examples/foreign_currency"}
 
 
 def test_config():

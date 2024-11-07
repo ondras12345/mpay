@@ -141,7 +141,7 @@ def create_parser(config_file_default: str = ""):
         if original_amount is not None:
             original_amount = Decimal(original_amount)
 
-        mp.pay(
+        transaction_id = mp.pay(
             recipient_name=args.recipient,
             converted_amount=args.amount,
             original_currency=original_currency,
@@ -151,6 +151,8 @@ def create_parser(config_file_default: str = ""):
             note=args.note,
             tag_hierarchical_names=args.tags
         )
+
+        print(f"created transaction with id={transaction_id}")
 
     parser_pay = subparsers.add_parser(
         "pay",
@@ -254,6 +256,72 @@ def create_parser(config_file_default: str = ""):
     parser_tag_create.add_argument(
         "--parent",
         help="hierarchical name of parent tag in tree structure"
+    )
+
+    def tag_add(mp: Mpay, args):
+        mp.add_tags(
+            transaction_ids=args.transactions,
+            tag_hierarchical_names=args.tags,
+        )
+
+    parser_tag_add = subparsers_tag.add_parser(
+        "add",
+        help="add tags to existing transactions"
+    )
+    parser_tag_add.set_defaults(func_mpay=tag_add)
+
+    parser_tag_add.add_argument(
+        "--transactions",
+        type=lambda t: [int(s) for s in t.split(",")],
+        required=True,
+        help="comma separated list of transaction ids"
+    )
+
+    parser_tag_add.add_argument(
+        "--tags",
+        type=lambda t: [s.strip() for s in t.split(",")],
+        required=True,
+        help="comma separated list of tags (e.g. tag1,a/b/tag2)"
+    )
+
+    def tag_remove(mp: Mpay, args):
+        mp.remove_tags(
+            transaction_ids=args.transactions,
+            tag_hierarchical_names=args.tags
+        )
+
+    parser_tag_remove = subparsers_tag.add_parser(
+        "remove",
+        help="remove existing tags from existing transactions"
+    )
+    parser_tag_remove.set_defaults(func_mpay=tag_remove)
+
+    parser_tag_remove.add_argument(
+        "--transactions",
+        type=lambda t: [int(s) for s in t.split(",")],
+        required=True,
+        help="comma separated list of transaction ids"
+    )
+
+    parser_tag_remove.add_argument(
+        "--tags",
+        type=lambda t: [s.strip() for s in t.split(",")],
+        required=True,
+        help="comma separated list of tags (e.g. tag1,a/b/tag2)"
+    )
+
+    def tag_show(mp: Mpay, args):
+        tags = mp.get_tags_for_transaction(args.transaction_id)
+        print("\n".join(tags))
+
+    parser_tag_show = subparsers_tag.add_parser(
+        "show",
+        help="show tags linked to the specified transaction"
+    )
+    parser_tag_show.set_defaults(func_mpay=tag_show)
+
+    parser_tag_show.add_argument(
+        "transaction_id", type=int,
     )
 
     parser_order = subparsers.add_parser(
