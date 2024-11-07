@@ -1,8 +1,35 @@
 # mpay
-TODO description
+Mpay is a self-hosted system that keeps track of financial transactions in a
+home environment.
+One or more clients (command-line only for now) connect to a central database.
+
+The system assumes all users trust each other. No authentication / permission
+system is implemented besides what the database management system itself can
+do. At most, you could configure the database to only allow a certain user
+to insert new transactions and disallow deletion or updating of existing ones
+(and thus, prevent them from rewriting history), but that still won't prevent
+them from stealing money from another user. This system does not try to
+prevent that.
+
+On the contrary, mpay actually makes it easy to pay someone a negative amount
+of money. I find this quite useful in a home setting. For example, if I
+pay the cash-on-delivery for a package that is addressed to my brother, I
+want to be able to just log the transaction in mpay without his interaction.
+
 
 ## Features
-TODO
+- Command-line available for GNU/Linux and Windows (and probably
+  other UNIX operating systems like mac, but I'm not using that).
+- Transactions can easily be created by scripts (and the script's name can be
+  logged, see `--agent`)
+- [RRULE](https://dateutil.readthedocs.io/en/stable/rrule.html)-based standing
+  orders can be used to create transactions periodically.
+- The CLI is easy to interact with programmatically, offering things like JSON
+  output format.
+- The python package can be imported and used directly in more complex
+  scripts.
+- A rudimentary GUI can be used to view the transaction history
+  (see `--format gui`).
 
 
 ## Installation
@@ -43,8 +70,8 @@ It is a good idea to at least run the tests located in `tests/` directory
 against your database. You should also `grep` the source codes for `dialect`
 and review what RDBMS-specific tweaks there are.
 
-Create the database tables:
-```sh
+Create the database tables (or upgrade to a newer database schema):
+```
 mpay admin init
 ```
 
@@ -54,7 +81,9 @@ following command periodically:
 mpay admin cron
 ```
 
-You can also use cron to run consistency checks:
+You can also use cron to run consistency checks (although those shouldn't be
+necessary if you don't mess with the database directly - don't do things
+like `PRAGMA foreign_keys=OFF` or `UPDATE users SET balance ...`).
 ```
 # exit status will be non-zero on failure
 mpay admin check
