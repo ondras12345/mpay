@@ -352,8 +352,7 @@ def test_mpay_cli(mpay_in_memory):
     # answer "yes" to all questions
     mp.ask_confirmation = lambda question: True
 
-    # config_file_default needs to exist
-    parser = mpay.cli.create_parser(config_file_default=__file__)
+    parser, _ = mpay.cli.create_parser()
 
     def execute_cli(arg_list: list[str]):
         args = parser.parse_args(arg_list)

@@ -10,6 +10,8 @@ import sys
 import dateutil.rrule
 import pandas as pd
 import typing
+import cmd
+import shlex
 from enum import Enum
 from decimal import Decimal
 from .config import Config
@@ -90,40 +92,8 @@ def print_df(mp: Mpay, df: pd.DataFrame, output_format: OutputFormat | None, nam
             raise NotImplementedError("unknown dataframe output format: %s", output_format)
 
 
-def create_parser(config_file_default: str = ""):
+def create_parser():
     parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "-c", "--config-file",
-        help="path to configuration file (default %(default)s)",
-        type=argparse.FileType("r"),
-        default=config_file_default
-    )
-
-    parser.add_argument(
-        "--override-user",
-        type=str, metavar="USER",
-        help="execute action as USER"
-    )
-
-    parser.add_argument(
-        "-v", "--verbose", action="count", default=0,
-        help="increase verbosity. Can be provided up to two times."
-    )
-
-    parser.add_argument(
-        "-y", "--assume-yes", "--yes",
-        action="store_true",
-        help='assume "yes" as answer to all prompts and run non-interactively'
-    )
-
-    parser.add_argument(
-        "--assume-no", "--no",
-        action="store_true",
-        help='assume "no" as answer to all prompts and run non-interactively. '
-             "This is roughly equivalent to reading EOF from stdin, "
-             "but it does not print the prompts"
-    )
 
     parser.add_argument(
         "-f", "--format", type=OutputFormat, choices=list(OutputFormat),
@@ -510,7 +480,38 @@ def create_parser(config_file_default: str = ""):
              "a transaction with positive amount"
     )
 
-    return parser
+    return parser, subparsers
+
+
+class InteractiveCLI(cmd.Cmd):
+    doc_header = "Type -h to see help for mpay commands"
+
+    def __init__(self, mp: Mpay, **kwargs):
+        cmd.Cmd.__init__(self, **kwargs)
+
+        self.mp = mp
+        self.parser, _ = create_parser()
+
+    def do_quit(self, args):
+        """Exit the interactive CLI."""
+        sys.exit()
+
+    do_exit = do_quit
+    do_EOF = do_quit
+
+    def default(self, line):
+        try:
+            args = self.parser.parse_args(shlex.split(line))
+        except SystemExit:
+            return
+
+        if hasattr(args, "func_mpay"):
+            try:
+                args.func_mpay(self.mp, args)
+            except MpayException as e:
+                print(f"error: {str(e)}")
+        else:
+            cmd.Cmd.default(self, line)
 
 
 def main():
@@ -526,7 +527,51 @@ def main():
     if not config_file.exists():
         config_file.touch()
 
-    parser = create_parser(config_file_default=str(config_file))
+    parser, subparsers = create_parser()
+
+    parser.add_argument(
+        "-c", "--config-file",
+        help="path to configuration file (default %(default)s)",
+        type=argparse.FileType("r"),
+        default=str(config_file)
+    )
+
+    parser.add_argument(
+        "--override-user",
+        type=str, metavar="USER",
+        help="execute action as USER"
+    )
+
+    parser.add_argument(
+        "-v", "--verbose", action="count", default=0,
+        help="increase verbosity. Can be provided up to two times."
+    )
+
+    parser.add_argument(
+        "-y", "--assume-yes", "--yes",
+        action="store_true",
+        help='assume "yes" as answer to all prompts and run non-interactively'
+    )
+
+    parser.add_argument(
+        "--assume-no", "--no",
+        action="store_true",
+        help='assume "no" as answer to all prompts and run non-interactively. '
+             "This is roughly equivalent to reading EOF from stdin, "
+             "but it does not print the prompts"
+    )
+
+    def interactive(mp: Mpay, args):
+        icli = InteractiveCLI(mp)
+        icli.cmdloop()
+
+    # Interactive CLI keeps the database connection open, so it should respond
+    # faster.
+    parser_interactive = subparsers.add_parser(
+        "interactive",
+        help="enter interactive CLI"
+    )
+    parser_interactive.set_defaults(func_mpay=interactive)
 
     argcomplete.autocomplete(parser)
 
