@@ -241,6 +241,7 @@ history_select = (
         _user_from.name.label("from"),
         _user_to.name.label("to"),
         Transaction.converted_amount.label("amount"),
+        Transaction.note,
         Currency.iso_4217.label("orig. currency"),
         Transaction.original_amount.label("orig. amount"),
         Agent.name.label("agent"),
@@ -248,7 +249,6 @@ history_select = (
         # is, and the order's user_from matches the transaction's
         # user_from.
         StandingOrder.name.label("order"),
-        Transaction.note,
         # Tag name is not unique, but it would be hard to get the
         # hierarchical name instead.
         func.group_concat(Tag.name).label("tags"),
