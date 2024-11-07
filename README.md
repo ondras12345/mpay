@@ -83,3 +83,7 @@ alembic -c mpay/alembic.ini revision --autogenerate -m "create example table"
 
 To actually apply the revision to a production database,
 run `mpay admin init`.
+
+The database schema as of alembic revision `931cbe1524ae` is shown below
+(exported from phpmyadmin):
+![database schema](doc/mpay_schema_931cbe1524ae.svg)
