@@ -32,6 +32,133 @@ want to be able to just log the transaction in mpay without his interaction.
   (see `--format gui`).
 
 
+### Demo
+In this terminal session, we will create an sqlite database and populate it
+with example data to show what's possible.
+```console
+$ ed demo.yaml
+demo.yaml: No such file or directory
+a
+user: johndoe
+db_url: "sqlite:///demo.db"
+.
+w
+42
+q
+
+$ mpay -c demo.yaml admin init
+
+$ mpay -c demo.yaml user create johndoe
+
+$ mpay -c demo.yaml user create bob
+
+$ mpay -c demo.yaml user create alice
+
+$ mpay -c demo.yaml user list
+ id    name  balance
+  1 johndoe      0.0
+  2     bob      0.0
+  3   alice      0.0
+
+$ mpay -c demo.yaml --format json user list
+[
+  {
+    "id":1,
+    "name":"johndoe",
+    "balance":0.0
+  },
+  {
+    "id":2,
+    "name":"bob",
+    "balance":0.0
+  },
+  {
+    "id":3,
+    "name":"alice",
+    "balance":0.0
+  }
+]
+
+$ mpay -c demo.yaml pay --to bob --amount 123.4 \
+  --note "first payment from johndoe to bob"
+created transaction with id=1
+
+$ mpay -c demo.yaml pay --to alice --amount -100 \
+  --note "let's steal from alice"
+created transaction with id=2
+
+$ mpay -c demo.yaml user list
+ id    name  balance
+  1 johndoe    -23.4
+  2     bob    123.4
+  3   alice   -100.0
+
+
+$ date -I
+2024-11-08
+
+$ mpay -c demo.yaml order create --to alice --amount 1.0 \
+  --rrule "DTSTART:2024-11-04 RRULE:FREQ=DAILY;COUNT=2" \
+  --note "recurring daily payment from johndoe to alice with expiry after 2 occurences" \
+  order1
+
+$ mpay -c demo.yaml order list
+ id   name user_from user_to  amount                                                                         note                                        rrule_str dt_next_utc             dt_created_utc
+  1 order1   johndoe   alice     1.0 recurring daily payment from johndoe to alice with expiry after 2 occurences DTSTART:20241104T000000 RRULE:FREQ=DAILY;COUNT=2  2024-11-04 2024-11-08 06:09:25.100187
+
+$ mpay -c demo.yaml --format json order list
+[
+  {
+    "id":1,
+    "name":"order1",
+    "user_from":"johndoe",
+    "user_to":"alice",
+    "amount":1.0,
+    "note":"recurring daily payment from johndoe to alice with expiry after 2 occurences",
+    "rrule_str":"DTSTART:20241104T000000\nRRULE:FREQ=DAILY;COUNT=2",
+    "dt_next_utc":1730678400000,
+    "dt_created_utc":1731046165100
+  }
+]
+
+$ mpay -c demo.yaml admin cron  # execute standing orders
+
+$ mpay -c demo.yaml history
+ id    from      to  amount                              note orig. currency orig. amount agent  order tags                    due_utc                created_utc created by
+  3 johndoe   alice     1.0                              <NA>           <NA>         <NA>  <NA> order1 <NA> 2024-11-04 00:00:00.000000 2024-11-08 06:10:08.733953    johndoe
+  4 johndoe   alice     1.0                              <NA>           <NA>         <NA>  <NA> order1 <NA> 2024-11-05 00:00:00.000000 2024-11-08 06:10:08.733958    johndoe
+  1 johndoe     bob   123.4 first payment from johndoe to bob           <NA>         <NA>  <NA>   <NA> <NA> 2024-11-08 06:03:27.376332 2024-11-08 06:03:27.412567    johndoe
+  2   alice johndoe   100.0            let's steal from alice           <NA>         <NA>  <NA>   <NA> <NA> 2024-11-08 06:04:05.596912 2024-11-08 06:04:05.632928    johndoe
+
+$ mpay -c demo.yaml -f gui history
+# see screenshot below
+
+$ # each user only sees transactions involving them
+$ mpay -c demo.yaml --override-user bob -f json history
+WARNING:mpay.cli:override user: bob
+[
+  {
+    "id":1,
+    "from":"johndoe",
+    "to":"bob",
+    "amount":123.4,
+    "note":"first payment from johndoe to bob",
+    "orig. currency":null,
+    "orig. amount":null,
+    "agent":null,
+    "order":null,
+    "tags":null,
+    "due_utc":1731045807376,
+    "created_utc":1731045807412,
+    "created by":"johndoe"
+  }
+]
+```
+![A GUI window showing transaction history](doc/demo-history.png)
+
+To see all available commands and options, run `mpay --help`.
+
+
 ## Installation
 It is recommended to install via [`pipx`](https://github.com/pypa/pipx):
 ```sh
