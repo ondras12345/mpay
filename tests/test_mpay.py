@@ -405,7 +405,7 @@ def test_mpay_cli(mpay_in_memory):
     execute_cli([
         "order", "create", "--recipient", "alice", "--amount", "2.0",
         "--rrule", f"DTSTART:{start.isoformat()} RRULE:FREQ=DAILY;COUNT=2",
-        "--note", "recurring daily payment from johndoe to bob with no expiry",
+        "--note", "recurring daily payment from johndoe to alice with expiry after 2 occurences",
         "order2",
     ])
 
